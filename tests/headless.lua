@@ -54,6 +54,16 @@ Tools.register_all(dummy_node)
 assert_true(registered["nvim.buffer.current"] ~= nil, "buffer.current registered")
 assert_true(registered["nvim.ex.substitute"] ~= nil, "ex.substitute registered")
 
+vim.cmd("enew")
+local empty_unnamed_buf = vim.api.nvim_get_current_buf()
+require("nvimclaw.chat").open({ side = "right", width = 0.4 })
+local empty_unnamed_current = Tools._tool_buffer_current({ include_content = true })
+assert_true(empty_unnamed_current.ok, "empty unnamed visible buffer current ok")
+assert_equal(empty_unnamed_current.result.buffer_id, empty_unnamed_buf, "chat focus targets empty unnamed visible buffer")
+assert_equal(empty_unnamed_current.result.path, "", "empty unnamed visible buffer path is empty")
+assert_equal(empty_unnamed_current.result.target_source, "last_file_buffer", "empty unnamed target source")
+require("nvimclaw.chat").close()
+
 local doc = tmp .. "/doc.md"
 local doc_rel = "doc.md"
 writefile(doc, {

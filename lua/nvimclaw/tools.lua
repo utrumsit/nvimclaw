@@ -290,6 +290,18 @@ local function is_chat_buffer(buf)
   return vim.api.nvim_buf_get_name(buf) == "nvimclaw://chat"
 end
 
+local function is_visible_buffer(buf)
+  if not (buf and vim.api.nvim_buf_is_valid(buf)) then
+    return false
+  end
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+      return true
+    end
+  end
+  return false
+end
+
 local function is_agent_target_buffer(buf)
   if not (buf and vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_is_loaded(buf)) then
     return false
@@ -301,6 +313,9 @@ local function is_agent_target_buffer(buf)
     return false
   end
   if vim.api.nvim_buf_get_name(buf) ~= "" then
+    return true
+  end
+  if is_visible_buffer(buf) then
     return true
   end
   if vim.api.nvim_buf_get_option(buf, "modified") then
