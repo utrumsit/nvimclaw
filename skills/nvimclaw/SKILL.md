@@ -52,7 +52,7 @@ Operator chat can connect with the local gateway token. The node tool surface al
 
 2. **Install the skill** (this file, as an agent):
    ```bash
-   clawhub skill install nvimclaw
+   openclaw skills install nvimclaw
    ```
 
 3. **Gateway token.** The plugin reads the OpenClaw gateway token from the default location (`~/.openclaw/openclaw.json`, the standard `openclaw` CLI config) or the `OPENCLAW_GATEWAY_TOKEN` env var.
@@ -478,5 +478,4 @@ Multi-surface rule of thumb: if you (the agent) just sent a message from webchat
 ## Related
 
 - [Plugin repo](https://github.com/utrumsit/nvimclaw) — `utrumsit/nvimclaw`.
-- [`codium` skill](https://github.com/openclaw/skills/blob/main/codium/SKILL.md) — the VSCodium/VSCode equivalent. Different editor, same OpenClaw node protocol. If the user says "VSCodium" instead of "Neovim", load that skill instead.
 - [`vscode.openclaw` extension](https://github.com/xiaoyaner-home/openclaw-vscode/) — the reference implementation that nvimclaw mirrors. Its command surface shape (`vscode.file.*`, `vscode.editor.*`) informed the `nvim.*` split.

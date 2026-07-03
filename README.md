@@ -125,13 +125,13 @@ The plugin exposes a `nvim.*` command surface for the agent to invoke. There are
 - **`safe`** (default): `buffer.current`, `buffer.read`, `search`, `cursor.get`, `selection.get`, `diagnostics.get`, `describe`.
 - **`privileged`** (requires opt-in): `buffer.write`, `buffer.replace_lines`, `buffer.open`, `buffer.reload`, `ex.command`, `ex.substitute`, `cursor.set`.
 
-The full tool table — params, return shapes, worked examples for each command, and the conflict-recovery flow — lives in the **`nvimclaw` skill on ClawHub**. Install it once:
+The full tool table — params, return shapes, worked examples for each command, and the conflict-recovery flow — lives in the bundled **`nvimclaw` skill**. Once the skill is published to ClawHub, install it once:
 
 ```bash
-clawhub skill install nvimclaw
+openclaw skills install nvimclaw
 ```
 
-…or read it in this repo at [`skills/nvimclaw/SKILL.md`](skills/nvimclaw/SKILL.md). That is the canonical reference agents use. Don't duplicate it here.
+Until then, read it in this repo at [`skills/nvimclaw/SKILL.md`](skills/nvimclaw/SKILL.md). That is the canonical reference agents use. Don't duplicate it here.
 
 ## Configuration
 
@@ -225,4 +225,3 @@ Written by [utrumsit](https://github.com/utrumsit). The design is informed by, a
 
 - [`vscode.openclaw`](https://github.com/xiaoyaner-home/openclaw-vscode/) — Xiaoyan's VSCode extension, the reference editor-as-node implementation. nvimclaw mirrors its auth model and command-surface shape.
 - The [OpenClaw source](https://github.com/openclaw/openclaw) — the gateway, the V3 device-identity protocol, the node protocol. nvimclaw speaks the wire format defined there.
-- The [`codium` skill](https://github.com/openclaw/skills/blob/main/codium/SKILL.md) — the precedent for this plugin's `nvimclaw` skill, and the closest analog for what an editor-as-node skill looks like from the agent's side.
