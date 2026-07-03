@@ -1,0 +1,36 @@
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.session.vim
+.netrwhist
+.nvim.lua
+
+# Test artifacts (we'll track fixtures, ignore outputs)
+tests/output/
+tests/.busted
+tests/.luacov*
+
+# Logs (per plan: rotating log at ~/.local/state/nvimclaw/nvimclaw.log)
+*.log
+
+# Local live-session scratch files
+chat.txt
+chat1.txt
+test.txt
+*-PLAN.md
+transcript*.txt
+nvim.log
+
+# Local config
+.env
+.env.local

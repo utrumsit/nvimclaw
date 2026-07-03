@@ -1,0 +1,224 @@
+local root = vim.fn.getcwd()
+local tmp = vim.fn.tempname()
+vim.fn.mkdir(tmp, "p")
+
+local function fail(message)
+  error(message, 2)
+end
+
+local function assert_true(value, message)
+  if not value then
+    fail(message or "assertion failed")
+  end
+end
+
+local function assert_equal(actual, expected, message)
+  if actual ~= expected then
+    fail(string.format("%s: expected %s, got %s", message or "assert_equal failed", vim.inspect(expected), vim.inspect(actual)))
+  end
+end
+
+local function realpath(path)
+  return vim.loop.fs_realpath(path) or vim.fn.fnamemodify(path, ":p")
+end
+
+local function writefile(path, lines)
+  vim.fn.writefile(lines, path)
+end
+
+local function main()
+local Config = require("nvimclaw.config")
+local Tools = require("nvimclaw.tools")
+
+local registered = {}
+local dummy_node = {
+  register_tool = function(tool)
+    registered[tool.name] = tool
+  end,
+}
+
+Config.reset()
+Config.apply({
+  workspace_root = tmp,
+  tools = { tier = "safe" },
+})
+Tools.register_all(dummy_node)
+
+assert_true(registered["nvim.buffer.current"] ~= nil, "buffer.current registered")
+assert_true(registered["nvim.ex.substitute"] ~= nil, "ex.substitute registered")
+
+local doc = tmp .. "/doc.md"
+local doc_rel = "doc.md"
+writefile(doc, {
+  "Schopenhauer is hilarius.",
+  "Second line.",
+  "Third line.",
+})
+
+vim.cmd("edit " .. vim.fn.fnameescape(doc))
+Tools.note_current_buffer()
+local file_buf = vim.api.nvim_get_current_buf()
+vim.api.nvim_win_set_cursor(0, { 2, 3 })
+
+require("nvimclaw.chat").open({ side = "right", width = 0.4 })
+local current = Tools._tool_buffer_current({ include_content = true, max_lines = 2 })
+assert_true(current.ok, "buffer.current ok")
+assert_equal(realpath(current.result.path), realpath(doc), "chat focus targets last file buffer")
+assert_equal(current.result.target_source, "last_file_buffer", "target source")
+assert_equal(current.result.lines[1], "Schopenhauer is hilarius.", "current content")
+
+local read = Tools._tool_buffer_read({})
+assert_true(read.ok, "buffer.read without path ok")
+assert_equal(realpath(read.result.path), realpath(doc), "buffer.read without path targets last file buffer")
+
+local cursor = Tools._tool_cursor_get({})
+assert_true(cursor.ok, "cursor.get without path ok")
+assert_equal(cursor.result.buffer_id, file_buf, "cursor.get without path targets last file buffer")
+assert_equal(cursor.result.line, 2, "cursor line follows file window")
+
+local denied = Tools._invoke("buffer.replace_lines", {
+  path = doc_rel,
+  start = 0,
+  ["end"] = 1,
+  lines = { "Replacement" },
+})
+assert_true(not denied.ok, "privileged tool denied in safe tier")
+assert_equal(denied.error.code, "tier_denied", "tier denied code")
+
+local unknown = Tools._invoke("buffer.read", { path = doc_rel, extra = true })
+assert_true(not unknown.ok, "unknown param rejected")
+assert_equal(unknown.error.code, "unknown_param", "unknown param code")
+
+Config.apply({
+  workspace_root = tmp,
+  tools = { tier = "privileged" },
+})
+
+local stale = Tools._invoke("buffer.replace_lines", {
+  path = doc_rel,
+  start = 1,
+  ["end"] = 2,
+  lines = { "Changed line." },
+  expected_changedtick = -1,
+})
+assert_true(not stale.ok, "stale changedtick conflicts")
+assert_equal(stale.error.code, "conflict", "conflict code")
+
+local tick = vim.api.nvim_buf_get_changedtick(file_buf)
+local before = vim.api.nvim_buf_get_lines(file_buf, 1, 2, false)
+local replaced = Tools._invoke("buffer.replace_lines", {
+  path = doc_rel,
+  start = 1,
+  ["end"] = 2,
+  lines = { "Changed line." },
+  expected_changedtick = tick,
+  expected_line_hash = Tools._hash_lines(before),
+})
+assert_true(replaced.ok, "replace_lines applies with matching guards")
+assert_equal(vim.api.nvim_buf_get_lines(file_buf, 1, 2, false)[1], "Changed line.", "line replaced")
+
+local dry = Tools._invoke("ex.substitute", {
+  path = doc_rel,
+  pattern = "hilarius",
+  replacement = "hilarious",
+  flags = "g",
+  dry_run = true,
+})
+assert_true(dry.ok, "substitute dry run ok")
+assert_equal(dry.result.matches, 1, "substitute dry run match count")
+
+local sub_tick = vim.api.nvim_buf_get_changedtick(file_buf)
+local sub = Tools._invoke("ex.substitute", {
+  path = doc_rel,
+  pattern = "hilarius",
+  replacement = "hilarious",
+  flags = "g",
+  expected_changedtick = sub_tick,
+  expected_line_hash = dry.result.line_hash,
+})
+assert_true(sub.ok, "substitute apply ok")
+assert_equal(sub.result.replaced, 1, "substitute replaced count")
+assert_equal(vim.api.nvim_buf_get_lines(file_buf, 0, 1, false)[1], "Schopenhauer is hilarious.", "substitute updated buffer")
+
+vim.cmd("enew")
+local scratch_buf = vim.api.nvim_get_current_buf()
+vim.api.nvim_buf_set_lines(scratch_buf, 0, -1, false, { "aoeuli" })
+Tools.note_current_buffer()
+require("nvimclaw.chat").open({ side = "right", width = 0.4 })
+
+local scratch_current = Tools._tool_buffer_current({ include_content = true })
+assert_true(scratch_current.ok, "unnamed buffer current ok")
+assert_equal(scratch_current.result.buffer_id, scratch_buf, "chat focus targets unnamed buffer")
+assert_equal(scratch_current.result.path, "", "unnamed buffer has empty path")
+assert_equal(scratch_current.result.content, "aoeuli", "unnamed buffer content")
+
+local scratch_read = Tools._tool_buffer_read({})
+assert_true(scratch_read.ok, "unnamed default read ok")
+assert_equal(scratch_read.result.buffer_id, scratch_buf, "unnamed read returns buffer id")
+assert_equal(scratch_read.result.content, "aoeuli", "unnamed read content")
+
+local scratch_write = Tools._invoke("buffer.write", {
+  buffer_id = scratch_buf,
+  content = "aoeuli-was-here",
+  expected_changedtick = vim.api.nvim_buf_get_changedtick(scratch_buf),
+})
+assert_true(scratch_write.ok, "buffer.write by buffer_id ok")
+assert_equal(vim.api.nvim_buf_get_lines(scratch_buf, 0, 1, false)[1], "aoeuli-was-here", "buffer_id write updated unnamed buffer")
+
+local scratch_dry = Tools._invoke("ex.substitute", {
+  buffer_id = scratch_buf,
+  pattern = "was",
+  replacement = "is",
+  flags = "",
+  dry_run = true,
+})
+assert_true(scratch_dry.ok, "substitute by buffer_id dry run ok")
+
+local scratch_sub = Tools._invoke("ex.substitute", {
+  buffer_id = scratch_buf,
+  pattern = "was",
+  replacement = "is",
+  flags = "",
+  expected_changedtick = vim.api.nvim_buf_get_changedtick(scratch_buf),
+  expected_line_hash = scratch_dry.result.line_hash,
+})
+assert_true(scratch_sub.ok, "substitute by buffer_id apply ok")
+assert_equal(vim.api.nvim_buf_get_lines(scratch_buf, 0, 1, false)[1], "aoeuli-is-here", "buffer_id substitute updated unnamed buffer")
+
+local scratch_count = vim.api.nvim_buf_line_count(scratch_buf)
+local scratch_append = Tools._invoke("buffer.replace_lines", {
+  buffer_id = scratch_buf,
+  start = scratch_count,
+  ["end"] = scratch_count,
+  lines = { "", "A new paragraph appended by the agent." },
+  expected_changedtick = vim.api.nvim_buf_get_changedtick(scratch_buf),
+})
+assert_true(scratch_append.ok, "append paragraph by buffer_id ok")
+assert_equal(vim.api.nvim_buf_get_lines(scratch_buf, scratch_count + 1, scratch_count + 2, false)[1], "A new paragraph appended by the agent.", "paragraph appended to unnamed buffer")
+
+local layout_before = {}
+for _, win in ipairs(vim.api.nvim_list_wins()) do
+  layout_before[win] = vim.api.nvim_win_get_buf(win)
+end
+local broad_ex = Tools._invoke("ex.command", {
+  cmd = "bufdo 1s/aoeuli-is-here/aoeuli-stayed-visible/e",
+})
+assert_true(broad_ex.ok, "broad ex command ok")
+for win, buf in pairs(layout_before) do
+  assert_true(vim.api.nvim_win_is_valid(win), "window still valid after broad ex command")
+  assert_equal(vim.api.nvim_win_get_buf(win), buf, "ex.command preserved window buffers")
+end
+
+local outside = Tools._invoke("buffer.read", { path = root .. "/README.md" })
+assert_true(not outside.ok, "path outside workspace denied")
+assert_equal(outside.error.code, "path_denied", "path denied code")
+
+print("nvimclaw headless tests passed")
+end
+
+local ok, err = xpcall(main, debug.traceback)
+if not ok then
+  io.stderr:write(tostring(err) .. "\n")
+  vim.cmd("cquit")
+end
+vim.cmd("qa!")
