@@ -28,7 +28,7 @@ This is the Neovim peer of `vscode.openclaw` — ~500 lines of Lua, same node pr
 
 ## Install
 
-Requires Neovim 0.9+ and an OpenClaw gateway reachable on the same machine (default: `ws://127.0.0.1:18789`).
+Requires Neovim 0.9+ and an OpenClaw gateway reachable from the machine running Neovim. The default endpoint is `ws://127.0.0.1:18789`, which works when OpenClaw is on the same computer or when an SSH tunnel forwards local port `18789` to another computer.
 
 ```lua
 -- lua/plugins/nvimclaw.lua  (lazy.nvim)
@@ -41,7 +41,7 @@ return {
 }
 ```
 
-The gateway token is read from `~/.openclaw/openclaw.json` (the default `openclaw` CLI config) or the `OPENCLAW_GATEWAY_TOKEN` env var. Chat works from that token. Tool invocation also requires the gateway to allow the `nvim.*` node commands and approve the `nvimclaw node` pairing once.
+The gateway token is read from `~/.openclaw/openclaw.json` (the default `openclaw` CLI config) or the `OPENCLAW_GATEWAY_TOKEN` env var. If `~/.openclaw/openclaw.json` has `gateway.mode = "remote"` and `gateway.remote.url = "ws://..."`, nvimclaw uses that URL unless you override `gateway` in `setup()`. Chat works from the gateway token. Tool invocation also requires the gateway to allow the `nvim.*` node commands and approve the `nvimclaw node` pairing once.
 
 ## First run
 
@@ -57,6 +57,32 @@ nvimclaw connects to the gateway using the **V3 device-identity** flow. Here's w
 If the token rotates, the plugin re-issues and persists a new one transparently. If you delete `~/.local/state/nvimclaw/identity.json`, you wipe the device identity and re-pair on the next launch.
 
 Verify the connection: `:OpenClawStatus` shows separate `chat` and `node` state, `node_id`, gateway, session.
+
+## Remote Gateways
+
+nvimclaw can run on one computer while OpenClaw runs on another, as long as the Neovim machine can reach the gateway over plain WebSocket (`ws://`). Common setups:
+
+- **SSH tunnel:** keep nvimclaw pointed at `127.0.0.1:18789`, and run a tunnel such as `ssh -L 18789:127.0.0.1:18789 mac-mini`. This is the easiest secure cross-machine setup.
+- **OpenClaw remote config:** on the Neovim machine, use `~/.openclaw/openclaw.json` with `gateway.mode = "remote"`, `gateway.remote.url = "ws://127.0.0.1:18789"` for a tunnel, or another reachable `ws://host:port`.
+- **Explicit plugin config:** pass `gateway = { host = "100.x.y.z", port = 18789 }` to `setup()` when the gateway is directly reachable.
+
+The Neovim machine must also have the gateway auth token, either in `OPENCLAW_GATEWAY_TOKEN` or under `gateway.auth.token` in `~/.openclaw/openclaw.json`:
+
+```json
+{
+  "gateway": {
+    "mode": "remote",
+    "remote": {
+      "url": "ws://127.0.0.1:18789"
+    },
+    "auth": {
+      "token": "..."
+    }
+  }
+}
+```
+
+`wss://` / HTTPS gateway URLs are not supported yet; use an SSH tunnel or a directly reachable `ws://` endpoint.
 
 ## Tool Permissions
 
@@ -137,7 +163,8 @@ Until then, read it in this repo at [`skills/nvimclaw/SKILL.md`](skills/nvimclaw
 
 ```lua
 require("nvimclaw").setup({
-  -- gateway endpoint (nil = read from `openclaw` CLI config)
+  -- gateway endpoint. Omit to use defaults or gateway.remote.url from
+  -- ~/.openclaw/openclaw.json when gateway.mode = "remote".
   gateway = nil,
 
   -- session to send messages to (default: "agent:main")

@@ -30,6 +30,13 @@ local function main()
 local Config = require("nvimclaw.config")
 local Tools = require("nvimclaw.tools")
 
+local parsed_gateway = Config._parse_gateway_url("ws://127.0.0.1:18789/openclaw")
+assert_true(parsed_gateway ~= nil, "remote gateway url parsed")
+assert_equal(parsed_gateway.host, "127.0.0.1", "remote gateway host")
+assert_equal(parsed_gateway.port, 18789, "remote gateway port")
+assert_equal(parsed_gateway.contextPath, "/openclaw", "remote gateway path")
+assert_equal(Config._parse_gateway_url("wss://gateway.example.com"), nil, "wss currently unsupported")
+
 local registered = {}
 local dummy_node = {
   register_tool = function(tool)

@@ -121,6 +121,52 @@ local function deep_merge(base, override)
   return result
 end
 
+local function parse_gateway_url(url)
+  if type(url) ~= "string" or url == "" then return nil end
+  local scheme, rest = url:match("^([%w+.-]+)://(.+)$")
+  if not scheme or not rest or scheme ~= "ws" then return nil end
+
+  local authority, path = rest:match("^([^/]*)(/.*)$")
+  if not authority then
+    authority = rest
+    path = ""
+  end
+
+  local host, port
+  if authority:sub(1, 1) == "[" then
+    host, port = authority:match("^%[([^%]]+)%]:(%d+)$")
+    if not host then host = authority:match("^%[([^%]]+)%]$") end
+  else
+    host, port = authority:match("^([^:]+):(%d+)$")
+    if not host then host = authority end
+  end
+  if not host or host == "" then return nil end
+
+  return {
+    host = host,
+    port = tonumber(port) or 18789,
+    tls = false,
+    contextPath = path or "",
+  }
+end
+
+local function read_openclaw_gateway_config()
+  local path = vim.fn.expand("~/.openclaw/openclaw.json")
+  if vim.fn.filereadable(path) ~= 1 then return nil end
+
+  local f = io.open(path, "r")
+  if not f then return nil end
+  local content = f:read("*a")
+  f:close()
+
+  local ok, data = pcall(vim.json.decode, content)
+  if not ok or type(data) ~= "table" then return nil end
+  local gateway = data.gateway
+  if type(gateway) ~= "table" or type(gateway.remote) ~= "table" then return nil end
+
+  return parse_gateway_url(gateway.remote.url)
+end
+
 -- ---------------------------------------------------------------------------
 -- Lazy default resolvers
 -- ---------------------------------------------------------------------------
@@ -143,7 +189,14 @@ end
 -- @param user_config table|nil  user-supplied config (typically from setup())
 function M.apply(user_config)
   user_config = user_config or {}
-  local fresh = deep_merge(defaults, user_config)
+  local base = defaults
+  if user_config.gateway == nil then
+    local openclaw_gateway = read_openclaw_gateway_config()
+    if openclaw_gateway then
+      base = deep_merge(defaults, { gateway = openclaw_gateway })
+    end
+  end
+  local fresh = deep_merge(base, user_config)
   merged = resolve_lazy_defaults(fresh)
 end
 
@@ -168,5 +221,7 @@ end
 function M.defaults()
   return defaults
 end
+
+M._parse_gateway_url = parse_gateway_url
 
 return M

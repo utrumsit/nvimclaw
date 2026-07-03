@@ -120,7 +120,8 @@ vim.api.nvim_create_user_command("OpenClawStatus", safe(function()
     "  node:      " .. tostring(status.node_state),
     "  node_id:   " .. tostring(status.node_id or "(not yet assigned)"),
     "  device_id: " .. tostring(status.device_id or "(not yet assigned)"),
-    "  token:     " .. tostring(status.device_token or "no"),
+    "  auth:      " .. tostring(status.gateway_auth_token or "no"),
+    "  device:    " .. tostring(status.device_token or "no"),
     "  session:   " .. tostring(status.session),
   }
   vim.api.nvim_echo({ { table.concat(lines, "\n"), "None" } }, false, {})

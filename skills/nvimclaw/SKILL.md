@@ -33,7 +33,7 @@ nvimclaw is a Neovim plugin that connects to the OpenClaw gateway with two roles
 - an operator-scoped chat surface for `sessions.send`
 - a node-scoped tool surface for `node.invoke.request`
 
-Operator chat can connect with the local gateway token. The node tool surface also needs gateway trust: `gateway.nodes.allowCommands` must include the `nvim.*` command names, and the `nvimclaw node` pairing must be approved once before commands become effective.
+Operator chat can connect with the gateway token. The gateway may be local to Neovim or remote over `ws://` through an SSH tunnel. The node tool surface also needs gateway trust: `gateway.nodes.allowCommands` must include the `nvim.*` command names, and the `nvimclaw node` pairing must be approved once before commands become effective.
 
 1. **Install the plugin** (lazy.nvim):
    ```lua
@@ -55,11 +55,11 @@ Operator chat can connect with the local gateway token. The node tool surface al
    openclaw skills install @utrumsit/nvimclaw
    ```
 
-3. **Gateway token.** The plugin reads the OpenClaw gateway token from the default location (`~/.openclaw/openclaw.json`, the standard `openclaw` CLI config) or the `OPENCLAW_GATEWAY_TOKEN` env var.
+3. **Gateway URL and token.** The plugin reads the OpenClaw gateway token from the default location (`~/.openclaw/openclaw.json`, the standard `openclaw` CLI config) or the `OPENCLAW_GATEWAY_TOKEN` env var. If `~/.openclaw/openclaw.json` has `gateway.mode = "remote"` and `gateway.remote.url = "ws://..."`, nvimclaw uses that URL unless the user overrides `gateway` in `setup()`. For a remote OpenClaw over SSH tunnel, `ws://127.0.0.1:18789` is still correct on the Neovim machine.
 
 4. **First launch.** On first run the plugin generates an Ed25519 device-identity keypair at `~/.local/state/nvimclaw/identity.json` (mode 0600), opens an operator WebSocket for chat, then opens a node-role WebSocket for tools after registering commands.
 
-5. **Node approval and command allowlist.** If `openclaw nodes status` says `approval pending`, the user or operator must run the displayed `openclaw nodes approve <requestId>`. If `nodes invoke` says `node command not allowed`, the gateway config needs `gateway.nodes.allowCommands` entries for the `nvim.*` commands. After changing that config, restart the gateway.
+5. **Node approval and command allowlist.** If `openclaw nodes status` says `approval pending`, the user or operator must run the displayed `openclaw nodes approve <requestId>` on the machine/config that controls the gateway. If `nodes invoke` says `node command not allowed`, the gateway config needs `gateway.nodes.allowCommands` entries for the `nvim.*` commands. After changing that config, restart the gateway.
 
 6. **Multiple Neovim instances** coexist fine. Pick the right one from `openclaw nodes status` and confirm with `nvim.describe`.
 
@@ -73,7 +73,7 @@ Inside Neovim:
 :OpenClawStatus
 ```
 
-This shows separate chat and node connection states, `node_id`, gateway host, and current session. Healthy means `chat: connected`, `node: connected`, and a populated `node_id`.
+This shows separate chat and node connection states, gateway auth-token availability, device-token state, `node_id`, gateway host, and current session. Healthy means `auth: yes`, `chat: connected`, `node: connected`, and a populated `node_id`. `device: no` means the gateway has not accepted the initial auth and issued a device token yet.
 
 From the shell:
 
@@ -458,6 +458,7 @@ Multi-surface rule of thumb: if you (the agent) just sent a message from webchat
 - **`unknown_command` (`{code, command}`)** — `nvim.describe` is your friend; it lists every command the plugin currently exposes, grouped by tier.
 - **`expected_changedtick` mismatch** returns a `conflict`, not a `tier_denied`. The two are unrelated — see §Conflict handling.
 - **`gateway_timeout` (`{code, retryable: true}`)** — slow or remote gateway. The plugin does not auto-retry mutating tools (it cannot know whether the previous attempt applied); the agent must re-read state and retry.
+- **Remote Neovim + remote OpenClaw:** confirm the Neovim machine can reach the gateway URL, usually `ws://127.0.0.1:18789` through an SSH tunnel. Confirm the Neovim process sees `OPENCLAW_GATEWAY_TOKEN` or that `~/.openclaw/openclaw.json` has `gateway.auth.token`. If the gateway logs `token_missing`, the auth token is not reaching nvimclaw. If it logs `token_mismatch`, the value is not the gateway's current token. If it logs `rate_limited`, quit Neovim and wait for the gateway lockout to clear before retrying.
 - **`auth_expired` (`{code, retryable: true}`)** — the deviceToken rotated mid-session. The plugin attempts one reconnect automatically; if it fails, surface this to the user with `:OpenClawReconnect` suggested.
 - **`buffer_not_found`** — the path doesn't correspond to an open Neovim buffer. For files on disk, open it first with `nvim.buffer.open` (privileged) or ask the user to open it.
 - **`file_missing`** — the path doesn't exist on disk either. Don't guess. Open or read nearby to confirm.

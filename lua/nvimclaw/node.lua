@@ -65,6 +65,7 @@ local on_node_ws_close
 local schedule_node_reconnect
 local send_node_frame
 local openssl_exe
+local websocket_path
 
 -- =============================================================================
 -- Internal state
@@ -596,6 +597,7 @@ open_websocket = function()
   local cfg = Config.current()
   local host = cfg.gateway.host
   local port = cfg.gateway.port
+  local path = cfg.gateway.contextPath
 
   local tcp = uv.new_tcp()
   if not tcp then
@@ -611,14 +613,20 @@ open_websocket = function()
       schedule_reconnect("tcp: " .. err)
       return
     end
-    send_http_upgrade(tcp, host, port)
+    send_http_upgrade(tcp, host, port, path)
   end)
 end
 
-send_http_upgrade = function(tcp, host, port)
+websocket_path = function(path)
+  if type(path) ~= "string" or path == "" then return "/" end
+  if path:sub(1, 1) ~= "/" then return "/" .. path end
+  return path
+end
+
+send_http_upgrade = function(tcp, host, port, path)
   local key = vim.base64.encode(Util.random_bytes(16))
   local req = table.concat({
-    "GET / HTTP/1.1",
+    "GET " .. websocket_path(path) .. " HTTP/1.1",
     "Host: " .. host .. ":" .. port,
     "Upgrade: websocket",
     "Connection: Upgrade",
@@ -1135,6 +1143,7 @@ open_node_websocket = function()
   local cfg = Config.current()
   local host = cfg.gateway.host
   local port = cfg.gateway.port
+  local path = cfg.gateway.contextPath
 
   local tcp = uv.new_tcp()
   if not tcp then
@@ -1150,14 +1159,14 @@ open_node_websocket = function()
       schedule_node_reconnect("tcp: " .. err)
       return
     end
-    send_node_http_upgrade(tcp, host, port)
+    send_node_http_upgrade(tcp, host, port, path)
   end)
 end
 
-send_node_http_upgrade = function(tcp, host, port)
+send_node_http_upgrade = function(tcp, host, port, path)
   local key = vim.base64.encode(Util.random_bytes(16))
   local req = table.concat({
-    "GET / HTTP/1.1",
+    "GET " .. websocket_path(path) .. " HTTP/1.1",
     "Host: " .. host .. ":" .. port,
     "Upgrade: websocket",
     "Connection: Upgrade",
@@ -1559,7 +1568,16 @@ read_gateway_token = function()
   f:close()
   local ok, data = pcall(vim.json.decode, content)
   if not ok or type(data) ~= "table" then return nil end
-  return data.gateway and data.gateway.auth and (data.gateway.auth.token or data.gateway.auth.password)
+  if data.gateway and data.gateway.auth then
+    return data.gateway.auth.token or data.gateway.auth.password
+  end
+  if data.gateway and data.gateway.remote and data.gateway.remote.auth then
+    return data.gateway.remote.auth.token or data.gateway.remote.auth.password
+  end
+  if data.gateway and data.gateway.remote then
+    return data.gateway.remote.token or data.gateway.remote.password
+  end
+  return nil
 end
 
 -- =============================================================================
@@ -1572,6 +1590,7 @@ function M.info()
     node_state = S.node_state,
     device_id = S.device_id,
     public_key = S.public_key_b64url,
+    gateway_auth_token = read_gateway_token() and "yes" or "no",
     device_token = S.device_token and ("yes (" .. #S.device_token .. " chars)") or "no",
     hello_ok_seen = S.hello_ok_seen,
     node_hello_ok_seen = S.node_hello_ok_seen,

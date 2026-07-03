@@ -144,7 +144,8 @@ local function _register_default_keymaps()
       "  node:      " .. tostring(s.node_state),
       "  node_id:   " .. tostring(s.node_id),
       "  device_id: " .. tostring(s.device_id),
-      "  token:     " .. tostring(s.device_token),
+      "  auth:      " .. tostring(s.gateway_auth_token),
+      "  device:    " .. tostring(s.device_token),
       "  session:   " .. tostring(s.session),
     }
     vim.api.nvim_echo({ { table.concat(lines, "\n"), "None" } }, false, {})
@@ -189,7 +190,7 @@ function M.status()
   local config = Config.current()
 
   -- Node may not have started yet; guard each accessor with pcall.
-  local state, node_state, node_id, device_id, device_token = "disconnected", "disconnected", nil, nil, nil
+  local state, node_state, node_id, device_id, gateway_auth_token, device_token = "disconnected", "disconnected", nil, nil, nil, nil
   pcall(function()
     local Node = require("nvimclaw.node")
     if Node.state then state = Node.state() end
@@ -197,6 +198,10 @@ function M.status()
     if Node.node_id then node_id = Node.node_id() end
     if Node.device_id then device_id = Node.device_id() end
     if Node.device_token then device_token = Node.device_token() and "yes" or "no" end
+    if Node.info then
+      local info = Node.info()
+      gateway_auth_token = info.gateway_auth_token
+    end
   end)
 
   return {
@@ -204,8 +209,10 @@ function M.status()
     node_state = node_state,
     node_id = node_id,
     device_id = device_id,
+    gateway_auth_token = gateway_auth_token,
     device_token = device_token,
     session = config.session,
+    gateway = config.gateway,
   }
 end
 
