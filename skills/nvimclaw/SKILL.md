@@ -52,7 +52,7 @@ Operator chat can connect with the local gateway token. The node tool surface al
 
 2. **Install the skill** (this file, as an agent):
    ```bash
-   openclaw skills install nvimclaw
+   openclaw skills install @utrumsit/nvimclaw
    ```
 
 3. **Gateway token.** The plugin reads the OpenClaw gateway token from the default location (`~/.openclaw/openclaw.json`, the standard `openclaw` CLI config) or the `OPENCLAW_GATEWAY_TOKEN` env var.

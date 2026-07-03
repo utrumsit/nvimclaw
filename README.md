@@ -128,7 +128,7 @@ The plugin exposes a `nvim.*` command surface for the agent to invoke. There are
 The full tool table — params, return shapes, worked examples for each command, and the conflict-recovery flow — lives in the bundled **`nvimclaw` skill**. Once the skill is published to ClawHub, install it once:
 
 ```bash
-openclaw skills install nvimclaw
+openclaw skills install @utrumsit/nvimclaw
 ```
 
 Until then, read it in this repo at [`skills/nvimclaw/SKILL.md`](skills/nvimclaw/SKILL.md). That is the canonical reference agents use. Don't duplicate it here.
