@@ -90,6 +90,8 @@ openclaw sessions list --agent main
 
 Use that same key in `init.lua`. If you invent a key in `init.lua` before OpenClaw knows about it, `sessions.send` may reject it with `session not found`.
 
+Known compatibility issue: OpenClaw `2026.6.11` can return `reply session initialization conflicted for ...` on repeated chat sends from nvimclaw. This appears to be an OpenClaw reply-session regression, not a nvimclaw session-name or token problem. The upstream OpenClaw fix is `826c84ea19` (`fix(config/sessions): narrow reply-session initialization revision to identity fields`) and should clear the issue once OpenClaw ships a release containing that commit.
+
 If the gateway reports `reply session initialization conflicted for agent:main:main`, restart the gateway to clear the wedged reply resolver:
 
 ```bash
