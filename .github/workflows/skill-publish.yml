@@ -10,18 +10,25 @@ on:
 jobs:
   dry-run:
     if: github.event_name == 'pull_request'
-    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
-    with:
-      owner: utrumsit
-      skill_path: skills/nvimclaw
-      dry_run: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g clawhub@latest
+      - run: clawhub --workdir "$GITHUB_WORKSPACE" skill publish skills/nvimclaw --owner utrumsit --dry-run
 
   publish:
     if: github.event_name == 'workflow_dispatch'
-    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
-    with:
-      owner: utrumsit
-      skill_path: skills/nvimclaw
-      dry_run: false
-    secrets:
-      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g clawhub@latest
+      - run: clawhub login --token "$CLAWHUB_TOKEN"
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+      - run: clawhub --workdir "$GITHUB_WORKSPACE" skill publish skills/nvimclaw --owner utrumsit
