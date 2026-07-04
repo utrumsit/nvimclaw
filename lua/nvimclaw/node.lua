@@ -598,6 +598,10 @@ open_websocket = function()
   local host = cfg.gateway.host
   local port = cfg.gateway.port
   local path = cfg.gateway.contextPath
+  if type(host) ~= "string" or host == "" or type(port) ~= "number" then
+    schedule_reconnect("invalid gateway config: host/port missing")
+    return
+  end
 
   local tcp = uv.new_tcp()
   if not tcp then
@@ -1034,7 +1038,7 @@ send_connect = function()
         client = {
           id = "cli",
           displayName = "nvimclaw surface (" .. (vim.fn.hostname() or "unknown") .. ")",
-          version = "0.1.2",
+          version = "0.1.3",
           platform = "macos",
           mode = "cli",
         },
@@ -1144,6 +1148,10 @@ open_node_websocket = function()
   local host = cfg.gateway.host
   local port = cfg.gateway.port
   local path = cfg.gateway.contextPath
+  if type(host) ~= "string" or host == "" or type(port) ~= "number" then
+    schedule_node_reconnect("invalid gateway config: host/port missing")
+    return
+  end
 
   local tcp = uv.new_tcp()
   if not tcp then
@@ -1392,7 +1400,7 @@ send_node_connect = function()
         client = {
           id = "node-host",
           displayName = "nvimclaw node (" .. (vim.fn.hostname() or "unknown") .. ")",
-          version = "0.1.2",
+          version = "0.1.3",
           platform = "macos",
           mode = "node",
         },

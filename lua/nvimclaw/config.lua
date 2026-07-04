@@ -150,6 +150,27 @@ local function parse_gateway_url(url)
   }
 end
 
+local function normalize_gateway_config(gateway)
+  if type(gateway) == "string" then
+    return parse_gateway_url(gateway) or gateway
+  end
+  if type(gateway) ~= "table" then
+    return gateway
+  end
+
+  local parsed = nil
+  if type(gateway.url) == "string" then
+    parsed = parse_gateway_url(gateway.url)
+  elseif type(gateway.remote) == "table" and type(gateway.remote.url) == "string" then
+    parsed = parse_gateway_url(gateway.remote.url)
+  end
+
+  if parsed then
+    return deep_merge(gateway, parsed)
+  end
+  return gateway
+end
+
 local function read_openclaw_gateway_config()
   local path = vim.fn.expand("~/.openclaw/openclaw.json")
   if vim.fn.filereadable(path) ~= 1 then return nil end
@@ -189,6 +210,11 @@ end
 -- @param user_config table|nil  user-supplied config (typically from setup())
 function M.apply(user_config)
   user_config = user_config or {}
+  if user_config.gateway ~= nil then
+    user_config = deep_merge(user_config, {
+      gateway = normalize_gateway_config(user_config.gateway),
+    })
+  end
   local base = defaults
   if user_config.gateway == nil then
     local openclaw_gateway = read_openclaw_gateway_config()

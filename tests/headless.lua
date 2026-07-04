@@ -37,6 +37,21 @@ assert_equal(parsed_gateway.port, 18789, "remote gateway port")
 assert_equal(parsed_gateway.contextPath, "/openclaw", "remote gateway path")
 assert_equal(Config._parse_gateway_url("wss://gateway.example.com"), nil, "wss currently unsupported")
 
+Config.reset()
+Config.apply({ gateway = "ws://127.0.0.1:18789" })
+assert_equal(Config.current().gateway.host, "127.0.0.1", "string gateway url host")
+assert_equal(Config.current().gateway.port, 18789, "string gateway url port")
+
+Config.reset()
+Config.apply({ gateway = { url = "ws://127.0.0.1:18789/openclaw" } })
+assert_equal(Config.current().gateway.host, "127.0.0.1", "gateway.url host")
+assert_equal(Config.current().gateway.contextPath, "/openclaw", "gateway.url path")
+
+Config.reset()
+Config.apply({ gateway = { remote = { url = "ws://127.0.0.1:18789" } } })
+assert_equal(Config.current().gateway.host, "127.0.0.1", "gateway.remote.url host")
+assert_equal(Config.current().gateway.port, 18789, "gateway.remote.url port")
+
 local registered = {}
 local dummy_node = {
   register_tool = function(tool)
