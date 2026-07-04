@@ -93,6 +93,24 @@ assert_true(cursor.ok, "cursor.get without path ok")
 assert_equal(cursor.result.buffer_id, file_buf, "cursor.get without path targets last file buffer")
 assert_equal(cursor.result.line, 2, "cursor line follows file window")
 
+require("nvimclaw.chat").close()
+local Init = require("nvimclaw")
+Init._register_target_buffer_autocmd()
+local code_path = tmp .. "/test.txt"
+writefile(code_path, {
+  "10 PRINT \"APPLE\"",
+  "20 GOTO 10",
+})
+vim.cmd("edit " .. vim.fn.fnameescape(code_path))
+local code_buf = vim.api.nvim_get_current_buf()
+vim.api.nvim_buf_set_lines(code_buf, 0, 1, false, { "10 PRINT \"ORANGE\"" })
+vim.api.nvim_exec_autocmds("TextChanged", { buffer = code_buf })
+require("nvimclaw.chat").open({ side = "right", width = 0.4 })
+local edited_current = Tools._tool_buffer_current({ include_content = true, max_lines = 1 })
+assert_true(edited_current.ok, "edited buffer target current ok")
+assert_equal(edited_current.result.buffer_id, code_buf, "chat focus targets most recently edited file buffer")
+assert_equal(edited_current.result.lines[1], "10 PRINT \"ORANGE\"", "edited buffer content returned")
+
 local denied = Tools._invoke("buffer.replace_lines", {
   path = doc_rel,
   start = 0,

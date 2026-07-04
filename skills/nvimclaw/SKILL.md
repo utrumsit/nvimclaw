@@ -1,9 +1,9 @@
 ---
 name: "nvimclaw"
 description: "Bridge to Neovim over OpenClaw's node plugin. nvim.*: buffer R/W, Ex commands (surgical :substitute), cursor/selection/diagnostics, chat-to-session messaging."
-version: "0.1.1"
+version: "0.1.2"
 requires:
-  nvimclaw: ">=0.1.1"
+  nvimclaw: ">=0.1.2"
 ---
 
 # nvimclaw — talk to a Neovim instance over the OpenClaw bridge
@@ -123,7 +123,7 @@ Every command takes a JSON params object and returns a JSON result. Tools are sp
 
 ### Current-buffer rule
 
-When the user says "this file", "the buffer", "what I'm looking at", or does not name an exact path, **call `nvim.buffer.current` first**. Do not infer from `cat`, process lists, cwd, or similarly named files. If the user's cursor is in the `nvimclaw://chat` split, the plugin returns the last normal file buffer as the agent target instead of the chat buffer. Use the returned `buffer_id`, `path`, `changedtick`, and `cursor` for the next operation.
+When the user says "this file", "the buffer", "what I'm looking at", or does not name an exact path, **call `nvim.buffer.current` first**. Do not infer from `cat`, process lists, cwd, or similarly named files. If the user's cursor is in the `nvimclaw://chat` split, the plugin returns the last focused or edited normal buffer as the agent target instead of the chat buffer. Use the returned `buffer_id`, `path`, `changedtick`, and `cursor` for the next operation.
 
 ```bash
 openclaw nodes invoke --node <N> --command nvim.buffer.current \
@@ -374,7 +374,7 @@ Returns:
 
 ```json
 {
-  "plugin_version": "0.1.1",
+  "plugin_version": "0.1.2",
   "protocol_version": 1,
   "surface_id": "nvim:mba.local:8f3a6f6c",
   "node_id": "nvim-abc123...",
@@ -472,10 +472,10 @@ Multi-surface rule of thumb: if you (the agent) just sent a message from webchat
 
 ## Compatibility
 
-- **Plugin:** requires `nvimclaw >= 0.1.1`. Plugin and skill are published atomically with matching versions.
+- **Plugin:** requires `nvimclaw >= 0.1.2`. Plugin and skill are published atomically with matching versions.
 - **Protocol:** `nvim.describe.payload.protocol_version` is the wire-protocol version, currently `1`. Bump it only on backward-incompatible tool-surface changes.
 - **Discovery of versions:** `nvim.describe` is the single source of truth for "what does this plugin support?" — call it before relying on a tool that may not exist in older releases.
-- **Skill frontmatter declares:** `requires: nvimclaw: ">=0.1.1"`. A newer skill with an older plugin installed will hit `unknown_command` or `unknown_param` and surface a clear error.
+- **Skill frontmatter declares:** `requires: nvimclaw: ">=0.1.2"`. A newer skill with an older plugin installed will hit `unknown_command` or `unknown_param` and surface a clear error.
 
 ## Related
 

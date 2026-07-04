@@ -202,7 +202,7 @@ require("nvimclaw").setup({
 
 Path access is guarded: any buffer path outside `workspace_root` returns a `path_denied` error. Tier `privileged` must be set in config or enabled at runtime via `:OpenClawTools privileged` before mutating commands succeed.
 
-When an agent needs "the file I'm looking at", it should call `nvim.buffer.current` first instead of guessing from cwd or disk. If the cursor is in the `nvimclaw://chat` split, nvimclaw targets the last normal file buffer instead of the chat buffer. Named buffers can be targeted by `path`; unnamed buffers can be targeted by the returned `buffer_id`. If an external fallback writes to disk, `nvim.buffer.reload` can run `:checktime` or `:edit!`; the plugin also runs `checktime` on focus/buffer/cursor idle for unmodified buffers.
+When an agent needs "the file I'm looking at", it should call `nvim.buffer.current` first instead of guessing from cwd or disk. If the cursor is in the `nvimclaw://chat` split, nvimclaw targets the last focused or edited normal buffer instead of the chat buffer. Named buffers can be targeted by `path`; unnamed buffers can be targeted by the returned `buffer_id`. If an external fallback writes to disk, `nvim.buffer.reload` can run `:checktime` or `:edit!`; the plugin also runs `checktime` on focus/buffer/cursor idle for unmodified buffers.
 
 ## How it works
 
@@ -221,7 +221,7 @@ Transport: WebSocket. Auth: V3 device-identity (Ed25519 keypair signed challenge
 - **Single device identity per Neovim process.** Each `~/.local/state/nvimclaw/identity.json` corresponds to one node. Multiple concurrent Neovim processes on one host work (different `boot_uuid` per process), but there is no concept of multiple identities per process.
 - **Single session at a time.** You pick one session to send to from the chat buffer; switching requires a `:OpenClawSwitchSession` (planned for v1.1, not in v0.1).
 - **Limited test surface.** v0.1 ships a headless-Neovim smoke suite for the core tool behavior. A fake-node gateway smoke can land later.
-- **No plugin→skill version handshake.** Compatibility is one-way: the skill declares `requires nvimclaw: ">=0.1.1"`, and `nvim.describe` returns `protocol_version` so agents can introspect what's actually available. There is no runtime "load skill X with plugin Y" call.
+- **No plugin→skill version handshake.** Compatibility is one-way: the skill declares `requires nvimclaw: ">=0.1.2"`, and `nvim.describe` returns `protocol_version` so agents can introspect what's actually available. There is no runtime "load skill X with plugin Y" call.
 
 ## Testing
 

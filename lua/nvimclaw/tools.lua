@@ -377,11 +377,14 @@ local function restore_windows(snapshot)
   end
 end
 
-function M.note_current_buffer()
-  local buf = vim.api.nvim_get_current_buf()
+function M.note_buffer(buf)
   if is_agent_target_buffer(buf) then
     target_buf = buf
   end
+end
+
+function M.note_current_buffer()
+  M.note_buffer(vim.api.nvim_get_current_buf())
 end
 
 function M._agent_target()
@@ -721,7 +724,7 @@ function M._tool_describe(_)
   end)
 
   return { ok = true, result = {
-    plugin_version   = "0.1.1",
+    plugin_version   = "0.1.2",
     protocol_version = 1,
     tools            = M.list_tools(),
     surface_id       = surface_id,

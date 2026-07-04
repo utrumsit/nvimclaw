@@ -111,14 +111,23 @@ end
 
 function M._register_target_buffer_autocmd()
   local group = vim.api.nvim_create_augroup("nvimclaw_target_buffer", { clear = true })
-  vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
+  vim.api.nvim_create_autocmd({
+    "BufEnter",
+    "WinEnter",
+    "CursorMoved",
+    "CursorMovedI",
+    "TextChanged",
+    "TextChangedI",
+    "InsertLeave",
+    "BufWritePost",
+  }, {
     group = group,
-    callback = function()
+    callback = function(args)
       pcall(function()
-        require("nvimclaw.tools").note_current_buffer()
+        require("nvimclaw.tools").note_buffer(args.buf)
       end)
     end,
-    desc = "nvimclaw: remember the last normal file buffer for agent tools",
+    desc = "nvimclaw: remember the last normal or edited buffer for agent tools",
   })
 end
 
