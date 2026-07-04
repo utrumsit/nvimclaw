@@ -1,0 +1,27 @@
+name: Publish ClawHub Skill
+
+on:
+  pull_request:
+    paths:
+      - "skills/nvimclaw/**"
+      - ".github/workflows/skill-publish.yml"
+  workflow_dispatch:
+
+jobs:
+  dry-run:
+    if: github.event_name == 'pull_request'
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@v1
+    with:
+      owner: utrumsit
+      skill_path: skills/nvimclaw
+      dry_run: true
+
+  publish:
+    if: github.event_name == 'workflow_dispatch'
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@v1
+    with:
+      owner: utrumsit
+      skill_path: skills/nvimclaw
+      dry_run: false
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}

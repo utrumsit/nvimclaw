@@ -1,6 +1,7 @@
 ---
 name: "nvimclaw"
 description: "Bridge to Neovim over OpenClaw's node plugin. nvim.*: buffer R/W, Ex commands (surgical :substitute), cursor/selection/diagnostics, chat-to-session messaging."
+version: "0.1.1"
 requires:
   nvimclaw: ">=0.1.1"
 ---
