@@ -1034,7 +1034,7 @@ send_connect = function()
         client = {
           id = "cli",
           displayName = "nvimclaw surface (" .. (vim.fn.hostname() or "unknown") .. ")",
-          version = "0.1.0",
+          version = "0.1.1",
           platform = "macos",
           mode = "cli",
         },
@@ -1392,7 +1392,7 @@ send_node_connect = function()
         client = {
           id = "node-host",
           displayName = "nvimclaw node (" .. (vim.fn.hostname() or "unknown") .. ")",
-          version = "0.1.0",
+          version = "0.1.1",
           platform = "macos",
           mode = "node",
         },

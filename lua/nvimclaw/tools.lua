@@ -721,7 +721,7 @@ function M._tool_describe(_)
   end)
 
   return { ok = true, result = {
-    plugin_version   = "0.1.0",
+    plugin_version   = "0.1.1",
     protocol_version = 1,
     tools            = M.list_tools(),
     surface_id       = surface_id,

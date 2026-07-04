@@ -2,7 +2,7 @@
 name: "nvimclaw"
 description: "Bridge to Neovim over OpenClaw's node plugin. nvim.*: buffer R/W, Ex commands (surgical :substitute), cursor/selection/diagnostics, chat-to-session messaging."
 requires:
-  nvimclaw: ">=0.1.0"
+  nvimclaw: ">=0.1.1"
 ---
 
 # nvimclaw — talk to a Neovim instance over the OpenClaw bridge
@@ -373,7 +373,7 @@ Returns:
 
 ```json
 {
-  "plugin_version": "0.1.0",
+  "plugin_version": "0.1.1",
   "protocol_version": 1,
   "surface_id": "nvim:mba.local:8f3a6f6c",
   "node_id": "nvim-abc123...",
@@ -471,10 +471,10 @@ Multi-surface rule of thumb: if you (the agent) just sent a message from webchat
 
 ## Compatibility
 
-- **Plugin:** requires `nvimclaw >= 0.1.0`. Plugin and skill are published atomically with matching versions.
+- **Plugin:** requires `nvimclaw >= 0.1.1`. Plugin and skill are published atomically with matching versions.
 - **Protocol:** `nvim.describe.payload.protocol_version` is the wire-protocol version, currently `1`. Bump it only on backward-incompatible tool-surface changes.
 - **Discovery of versions:** `nvim.describe` is the single source of truth for "what does this plugin support?" — call it before relying on a tool that may not exist in older releases.
-- **Skill frontmatter declares:** `requires: nvimclaw: ">=0.1.0"`. A newer skill with an older plugin installed will hit `unknown_command` or `unknown_param` and surface a clear error.
+- **Skill frontmatter declares:** `requires: nvimclaw: ">=0.1.1"`. A newer skill with an older plugin installed will hit `unknown_command` or `unknown_param` and surface a clear error.
 
 ## Related
 

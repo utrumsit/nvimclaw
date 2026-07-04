@@ -221,7 +221,7 @@ Transport: WebSocket. Auth: V3 device-identity (Ed25519 keypair signed challenge
 - **Single device identity per Neovim process.** Each `~/.local/state/nvimclaw/identity.json` corresponds to one node. Multiple concurrent Neovim processes on one host work (different `boot_uuid` per process), but there is no concept of multiple identities per process.
 - **Single session at a time.** You pick one session to send to from the chat buffer; switching requires a `:OpenClawSwitchSession` (planned for v1.1, not in v0.1).
 - **Limited test surface.** v0.1 ships a headless-Neovim smoke suite for the core tool behavior. A fake-node gateway smoke can land later.
-- **No plugin→skill version handshake.** Compatibility is one-way: the skill declares `requires nvimclaw: ">=0.1.0"`, and `nvim.describe` returns `protocol_version` so agents can introspect what's actually available. There is no runtime "load skill X with plugin Y" call.
+- **No plugin→skill version handshake.** Compatibility is one-way: the skill declares `requires nvimclaw: ">=0.1.1"`, and `nvim.describe` returns `protocol_version` so agents can introspect what's actually available. There is no runtime "load skill X with plugin Y" call.
 
 ## Testing
 
