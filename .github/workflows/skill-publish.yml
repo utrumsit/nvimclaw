@@ -10,7 +10,7 @@ on:
 jobs:
   dry-run:
     if: github.event_name == 'pull_request'
-    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@v1
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
     with:
       owner: utrumsit
       skill_path: skills/nvimclaw
@@ -18,7 +18,7 @@ jobs:
 
   publish:
     if: github.event_name == 'workflow_dispatch'
-    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@v1
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
     with:
       owner: utrumsit
       skill_path: skills/nvimclaw
