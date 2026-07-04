@@ -447,7 +447,7 @@ The inverse direction: Neovim → agent session. The user types into the chat bu
 - Inside Neovim: `<space>oc` opens the chat buffer (`nvimclaw://chat`) in a vertical split (right side, 40% wide). The current buffer is auto-attached as attachment context (path, line count, language, changedtick).
 - `<CR>` sends a normal user turn. `<C-c>` cancels the outbound send **before** the gateway has accepted it; it cannot cancel in-flight agent work.
 - The default session is the same `agent:main:main` that webchat and other default surfaces bind to. **Memory, persona, and conversation history carry across surfaces.**
-- Current OpenClaw releases do not expose a `sessions create` CLI command. If the user wants a different session, they must create it from an OpenClaw surface such as the dashboard and then configure nvimclaw with that existing key. Unknown keys return `session not found`.
+- OpenClaw does not currently expose a `sessions create` subcommand, but the user can initialize a named session by running one agent turn with an explicit key, for example `openclaw agent --session-key agent:main:nvim --message "Initialize nvim session. Reply ok."`. Then configure nvimclaw with that same existing key. Unknown keys can return `session not found`.
 - If `sessions.send` returns `reply session initialization conflicted for agent:main:main`, the OpenClaw reply resolver is wedged for that session. Ask the user to run `openclaw gateway restart`, then restart Neovim or restart the nvimclaw node.
 - v0.1 ships request/response chat (one full assistant turn per send). Token streaming lands in v1.1; the internal callback shape is already event-based to make the swap a UI change, not an architecture rewrite.
 

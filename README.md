@@ -72,11 +72,23 @@ Use an existing key in config:
 
 ```lua
 require("nvimclaw").setup({
-  session = "agent:main:main",
+  session = "agent:main:nvim",
 })
 ```
 
-Current OpenClaw releases do not expose a `sessions create` CLI command. To create a new conversation session, start it from an OpenClaw surface such as the dashboard, then use `openclaw sessions list --agent main` to find its key. Do not invent a new key in `init.lua`; `sessions.send` will reject unknown keys with `session not found`.
+OpenClaw does not currently expose a `sessions create` subcommand, but you can initialize a named session by running one agent turn with an explicit session key:
+
+```bash
+openclaw agent --session-key agent:main:nvim --message "Initialize nvim session. Reply ok."
+```
+
+Then verify the key exists:
+
+```bash
+openclaw sessions list --agent main
+```
+
+Use that same key in `init.lua`. If you invent a key in `init.lua` before OpenClaw knows about it, `sessions.send` may reject it with `session not found`.
 
 If the gateway reports `reply session initialization conflicted for agent:main:main`, restart the gateway to clear the wedged reply resolver:
 
