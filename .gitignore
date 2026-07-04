@@ -34,3 +34,4 @@ nvim.log
 # Local config
 .env
 .env.local
+local-notes/
