@@ -123,6 +123,9 @@ end
 
 local function parse_gateway_url(url)
   if type(url) ~= "string" or url == "" then return nil end
+  if not url:match("^%w+://") then
+    url = "ws://" .. url
+  end
   local scheme, rest = url:match("^([%w+.-]+)://(.+)$")
   if not scheme or not rest or scheme ~= "ws" then return nil end
 
@@ -161,6 +164,8 @@ local function normalize_gateway_config(gateway)
   local parsed = nil
   if type(gateway.url) == "string" then
     parsed = parse_gateway_url(gateway.url)
+  elseif type(gateway.remote) == "string" then
+    parsed = parse_gateway_url(gateway.remote)
   elseif type(gateway.remote) == "table" and type(gateway.remote.url) == "string" then
     parsed = parse_gateway_url(gateway.remote.url)
   end

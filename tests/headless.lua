@@ -52,6 +52,16 @@ Config.apply({ gateway = { remote = { url = "ws://127.0.0.1:18789" } } })
 assert_equal(Config.current().gateway.host, "127.0.0.1", "gateway.remote.url host")
 assert_equal(Config.current().gateway.port, 18789, "gateway.remote.url port")
 
+Config.reset()
+Config.apply({ gateway = { remote = "ws://127.0.0.1:18789" } })
+assert_equal(Config.current().gateway.host, "127.0.0.1", "gateway.remote string host")
+assert_equal(Config.current().gateway.port, 18789, "gateway.remote string port")
+
+Config.reset()
+Config.apply({ gateway = { url = "127.0.0.1:18789" } })
+assert_equal(Config.current().gateway.host, "127.0.0.1", "bare gateway.url host")
+assert_equal(Config.current().gateway.port, 18789, "bare gateway.url port")
+
 local registered = {}
 local dummy_node = {
   register_tool = function(tool)
