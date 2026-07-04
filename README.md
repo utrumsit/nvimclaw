@@ -10,7 +10,7 @@ This is the Neovim peer of `vscode.openclaw` — ~500 lines of Lua, same node pr
 
 ```
 ┌──────────────────────────────────┬──────────────────────────────┐
-│ ~/writing/Drafts/                │ agent:main                   │
+│ ~/writing/Drafts/                │ agent:main:main              │
 │  23 schopenhauer.md              │                              │
 │                                  │ > you:  change Artur to       │
 │ Schopenhauer is hilarious. He    │   Arthur                     │
@@ -57,6 +57,34 @@ nvimclaw connects to the gateway using the **V3 device-identity** flow. Here's w
 If the token rotates, the plugin re-issues and persists a new one transparently. If you delete `~/.local/state/nvimclaw/identity.json`, you wipe the device identity and re-pair on the next launch.
 
 Verify the connection: `:OpenClawStatus` shows separate `chat` and `node` state, `node_id`, gateway, session.
+
+## Sessions
+
+nvimclaw sends chat-buffer messages to one existing OpenClaw session key. The default is `agent:main:main`, which is the default `main` agent's main direct session.
+
+List known sessions:
+
+```bash
+openclaw sessions list --agent main
+```
+
+Use an existing key in config:
+
+```lua
+require("nvimclaw").setup({
+  session = "agent:main:main",
+})
+```
+
+Current OpenClaw releases do not expose a `sessions create` CLI command. To create a new conversation session, start it from an OpenClaw surface such as the dashboard, then use `openclaw sessions list --agent main` to find its key. Do not invent a new key in `init.lua`; `sessions.send` will reject unknown keys with `session not found`.
+
+If the gateway reports `reply session initialization conflicted for agent:main:main`, restart the gateway to clear the wedged reply resolver:
+
+```bash
+openclaw gateway restart
+```
+
+Then restart Neovim or run `:lua require("nvimclaw.node").stop()` followed by `:lua require("nvimclaw.node").start()`.
 
 ## Remote Gateways
 
@@ -167,8 +195,9 @@ require("nvimclaw").setup({
   -- ~/.openclaw/openclaw.json when gateway.mode = "remote".
   gateway = nil,
 
-  -- session to send messages to (default: "agent:main")
-  session = "agent:main",
+  -- existing OpenClaw session key to send messages to
+  -- default: "agent:main:main"
+  session = "agent:main:main",
 
   -- keybind to summon the chat (default "<space>oc")
   keymap = "<space>oc",

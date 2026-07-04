@@ -44,8 +44,8 @@ Operator chat can connect with the gateway token. The gateway may be local to Ne
      event = "VeryLazy",
      config = function()
        require("nvimclaw").setup({
-         -- session to send messages to; default is "agent:main"
-         session = "agent:main",
+         -- existing OpenClaw session key; default is "agent:main:main"
+         session = "agent:main:main",
        })
      end,
    }
@@ -442,11 +442,13 @@ When in doubt, **ask the user which one** rather than guessing. Similar workspac
 
 ## Send-from-Neovim (the surface capability)
 
-The inverse direction: Neovim → agent session. The user types into the chat buffer inside Neovim, and the same session (e.g. `agent:main`) receives the message.
+The inverse direction: Neovim → agent session. The user types into the chat buffer inside Neovim, and the configured existing session key (default `agent:main:main`) receives the message.
 
 - Inside Neovim: `<space>oc` opens the chat buffer (`nvimclaw://chat`) in a vertical split (right side, 40% wide). The current buffer is auto-attached as attachment context (path, line count, language, changedtick).
 - `<CR>` sends a normal user turn. `<C-c>` cancels the outbound send **before** the gateway has accepted it; it cannot cancel in-flight agent work.
-- The session is the same `agent:main` that webchat, VSCodium, and any other surface also bind to. **Memory, persona, and conversation history carry across surfaces.**
+- The default session is the same `agent:main:main` that webchat and other default surfaces bind to. **Memory, persona, and conversation history carry across surfaces.**
+- Current OpenClaw releases do not expose a `sessions create` CLI command. If the user wants a different session, they must create it from an OpenClaw surface such as the dashboard and then configure nvimclaw with that existing key. Unknown keys return `session not found`.
+- If `sessions.send` returns `reply session initialization conflicted for agent:main:main`, the OpenClaw reply resolver is wedged for that session. Ask the user to run `openclaw gateway restart`, then restart Neovim or restart the nvimclaw node.
 - v0.1 ships request/response chat (one full assistant turn per send). Token streaming lands in v1.1; the internal callback shape is already event-based to make the swap a UI change, not an architecture rewrite.
 
 Multi-surface rule of thumb: if you (the agent) just sent a message from webchat, the Neovim chat buffer will not stream it in unless that Neovim process is subscribed and that subscription is for the same `surface_id`. In practice, **the Neovim chat buffer shows only messages originating from that Neovim process**, plus the responses they trigger. A user-turn sent from webchat appears on the webchat surface only.
