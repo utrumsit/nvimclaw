@@ -1,9 +1,9 @@
 ---
 name: "nvimclaw"
-description: "Bridge to Neovim over OpenClaw's node plugin. nvim.*: buffer R/W, Ex commands (surgical :substitute), cursor/selection/diagnostics, chat-to-session messaging."
-version: "0.1.4"
+description: "Bridge to live Neovim over OpenClaw's node plugin. Use for reading or editing named and unnamed buffers, discovering open buffers, running surgical Ex substitutions, inspecting cursor/selection/diagnostics, and Neovim chat-to-session messaging."
+version: "0.1.5"
 requires:
-  nvimclaw: ">=0.1.4"
+  nvimclaw: ">=0.1.5"
 ---
 
 # nvimclaw — talk to a Neovim instance over the OpenClaw bridge
@@ -13,19 +13,6 @@ Use this skill whenever the user wants the agent to read, edit, or inspect somet
 nvimclaw is the **Neovim equivalent of `vscode.openclaw`**: it registers a Neovim instance as an *OpenClaw node* and exposes a `nvim.*` command surface the agent can invoke. It also exposes a **surface** (a chat buffer inside Neovim) so the user can summon the same agent session from inside the editor. Session, persona, and memory carry across surfaces.
 
 The tool surface covers any file in any configured workspace — Markdown, Lua, Python, prose, configuration files, or anything else Neovim is editing live.
-
-## When this skill applies
-
-Trigger on any of:
-
-- "edit this file in my Neovim", "fix this in Vim", "rename X to Y in Neovim"
-- "what's open in my Neovim", "what file am I on", "what's focused in Vim"
-- "run a substitution in Neovim", "do `:s/.../.../g` in my buffer"
-- "send a message from Neovim to my session", "open the Neovim chat"
-- "what's the cursor position in Neovim", "show me the diagnostics for this file"
-- "open this file in Neovim", "make this the active buffer"
-
-Do **not** use for files outside Neovim's `workspace_root` — read them locally with `read` instead.
 
 ## Setup, once — never re-derive this
 
@@ -118,19 +105,36 @@ Every command takes a JSON params object and returns a JSON result. Tools are sp
 
 | Tier | Commands |
 |---|---|
-| safe | `nvim.buffer.current`, `nvim.buffer.read`, `nvim.search`, `nvim.cursor.get`, `nvim.selection.get`, `nvim.diagnostics.get`, `nvim.describe` |
+| safe | `nvim.buffer.current`, `nvim.buffer.list`, `nvim.buffer.read`, `nvim.search`, `nvim.cursor.get`, `nvim.selection.get`, `nvim.diagnostics.get`, `nvim.describe` |
 | privileged | `nvim.buffer.write`, `nvim.buffer.replace_lines`, `nvim.buffer.open`, `nvim.buffer.reload`, `nvim.ex.command`, `nvim.ex.substitute`, `nvim.cursor.set` |
 
 ### Current-buffer rule
 
-When the user says "this file", "the buffer", "what I'm looking at", or does not name an exact path, **call `nvim.buffer.current` first**. Do not infer from `cat`, process lists, cwd, or similarly named files. If the user's cursor is in the `nvimclaw://chat` split, the plugin returns the last focused or edited normal buffer as the agent target instead of the chat buffer. Use the returned `buffer_id`, `path`, `changedtick`, and `cursor` for the next operation.
+When the user says "this file", "the buffer", "what I'm looking at", or does not name an exact path, **call `nvim.buffer.current` first**. Do not infer from `cat`, process lists, cwd, or similarly named files. If the user's cursor is in the `nvimclaw://chat` split, the plugin normally returns the last focused or edited normal buffer as the agent target. Use the returned `buffer_id`, `path`, `changedtick`, and `cursor` for the next operation.
 
 ```bash
 openclaw nodes invoke --node <N> --command nvim.buffer.current \
   --params '{"include_content": true, "max_lines": 200}'
 ```
 
-If `path` is non-empty, prefer it for later calls. If `path` is empty, the buffer is unnamed or scratch-like; use the returned `buffer_id` for later calls. If the current buffer is large, call `nvim.buffer.current` without `include_content`, then call `nvim.buffer.read` with the returned `path` or `buffer_id`.
+If `path` is non-empty, prefer it for later calls. If `path` is empty, the buffer is unnamed; use its `buffer_id`. If the result is the chat buffer or is not the buffer the user means, call `nvim.buffer.list` instead of guessing.
+
+### Discovering buffer IDs with `nvim.buffer.list` (safe)
+
+List every loaded buffer, including unnamed unsaved buffers, without raising the tool tier:
+
+```bash
+openclaw nodes invoke --node <N> --command nvim.buffer.list --params '{}'
+```
+
+Each entry includes `buffer_id`, `name`, `path`, `modified`, `filetype`, `buftype`, `line_count`, `visible`, and `current`. Ignore `nvimclaw://chat` unless the user explicitly asks about it. For multiple buffers, choose the entry matching the user's description, then read it from memory:
+
+```bash
+openclaw nodes invoke --node <N> --command nvim.buffer.read \
+  --params '{"buffer_id": 7}'
+```
+
+Use this workflow for unnamed buffers because they have no disk path. On plugin versions before 0.1.5, `nvim.buffer.list` is unavailable; `nvim.ex.command` with `{"cmd":"ls"}` is a privileged fallback and may require a tier bump.
 
 ### `nvim.buffer.read` (safe)
 
@@ -226,14 +230,14 @@ For a named buffer, use `"path": "drafts/example.md"` instead of `buffer_id`. Fo
 
 ### `nvim.buffer.open` (privileged)
 
-Open a path in Neovim, making it the active buffer. Use to load a file from a session-message context into the editor so the user can see what the agent is about to edit.
+Open an existing file from disk in Neovim, making it the active buffer. `path` is required, the file must exist, and this command does not accept `buffer_id`. To read an existing in-memory or unnamed buffer, use `nvim.buffer.read` with `buffer_id`; use `nvim.buffer.list` to discover the ID.
 
 ```bash
 openclaw nodes invoke --node <N> --command nvim.buffer.open \
   --params '{"path": "drafts/example.md"}'
 ```
 
-Params: `{path: string}`. Returns `{ok: true, buffer_id: 7}`.
+Params: `{path: string}`. Missing `path` returns `unknown_param`; a nonexistent path returns `file_missing`. Returns `{ok: true, buffer_id: 7}`. To show an already-loaded buffer, use `nvim.ex.command` with `{"cmd":"buffer 7","preserve_layout":false}`; leaving `preserve_layout` at its default would undo the visible switch.
 
 ### `nvim.buffer.reload` (privileged)
 
@@ -255,7 +259,7 @@ openclaw nodes invoke --node <N> --command nvim.ex.command \
   --params '{"cmd": "write", "confirm": false}'
 ```
 
-Params: `{cmd: string, confirm?: boolean, preserve_layout?: boolean}`. `preserve_layout` defaults to `true`, so commands that temporarily switch buffers should leave existing windows showing the buffers they showed before. Returns `{ok: true, output: ""}` or `{ok: false, declined: true}` if the user dismissed the prompt.
+Params: `{cmd: string, confirm?: boolean, preserve_layout?: boolean}`. `preserve_layout` defaults to `true`, so commands that temporarily switch buffers should leave existing windows showing the buffers they showed before. Returns `{ok: true, output: ""}` or `{ok: false, error: {code: "declined"}}` if the user dismissed the prompt.
 
 ### `nvim.ex.substitute` (privileged — the centerpiece)
 
@@ -328,7 +332,7 @@ openclaw nodes invoke --node <N> --command nvim.cursor.get \
   --params '{"path": "drafts/example.md"}'
 ```
 
-Params: `{path: string}`. Returns `{line: 1, col: 1}`.
+Params: `{path?: string, buffer_id?: number}`. With neither target, uses the current agent target. Returns `{line: 1, col: 1, buffer_id: 7}`.
 
 ### `nvim.cursor.set` (privileged)
 
@@ -339,7 +343,7 @@ openclaw nodes invoke --node <N> --command nvim.cursor.set \
   --params '{"path": "drafts/example.md", "line": 12, "col": 5}'
 ```
 
-Params: `{path: string, line: int, col: int}` (both 1-indexed). Returns `{ok: true}`.
+Params: `{path?: string, buffer_id?: number, line: int, col: int}` (line and column are 1-indexed). With neither target, uses the current agent target; the target must be visible. Returns `{ok: true}`.
 
 ### `nvim.selection.get` (safe)
 
@@ -374,7 +378,7 @@ Returns:
 
 ```json
 {
-  "plugin_version": "0.1.4",
+  "plugin_version": "0.1.5",
   "protocol_version": 1,
   "surface_id": "nvim:mba.local:8f3a6f6c",
   "node_id": "nvim-abc123...",
@@ -382,8 +386,8 @@ Returns:
   "cwd": "/home/user/project",
   "workspace_root": "/home/user/project",
   "tools": {
-    "safe": ["buffer.current", "buffer.read", "search", "cursor.get", "selection.get", "diagnostics.get", "describe"],
-    "privileged": ["buffer.write", "buffer.replace_lines", "buffer.open", "buffer.reload", "ex.command", "ex.substitute", "cursor.set"]
+    "safe": ["nvim.buffer.current", "nvim.buffer.list", "nvim.buffer.read", "nvim.search", "nvim.cursor.get", "nvim.selection.get", "nvim.diagnostics.get", "nvim.describe"],
+    "privileged": ["nvim.buffer.write", "nvim.buffer.replace_lines", "nvim.buffer.open", "nvim.buffer.reload", "nvim.ex.command", "nvim.ex.substitute", "nvim.cursor.set"]
   }
 }
 ```
@@ -417,11 +421,11 @@ The plugin applies the edit **only if both supplied preconditions match the curr
 **Always handle conflicts by re-reading, not by retrying blindly:**
 
 1. The agent receives a conflict response. The `sample_lines` show the current text in the affected range.
-2. Re-call `nvim.buffer.read` (with the same path) to get the full current content if needed.
+2. Re-call `nvim.buffer.read` with the same `path` or `buffer_id` to get the full current content if needed.
 3. Decide whether the new content changes the intent of the edit. If yes, abort and tell the user. If no, retry with the new `current_changedtick` and `current_line_hash` from the conflict response.
 4. Never assume last-write-wins. The whole point of the optimistic lock is to prevent destructive overwrites.
 
-`expected_line_hash` is optional but **strongly recommended for prose edits** where a tick bump might come from an unrelated cursor move during the agent's preflight.
+`expected_line_hash` is optional but **strongly recommended for prose edits** where the user may make another edit during the agent's preflight.
 
 ## Discovery
 
@@ -464,9 +468,9 @@ Multi-surface rule of thumb: if you (the agent) just sent a message from webchat
 - **`gateway_timeout` (`{code, retryable: true}`)** — slow or remote gateway. The plugin does not auto-retry mutating tools (it cannot know whether the previous attempt applied); the agent must re-read state and retry.
 - **Remote Neovim + remote OpenClaw:** confirm the Neovim machine can reach the gateway URL, usually `ws://127.0.0.1:18789` through an SSH tunnel. Confirm the Neovim process sees `OPENCLAW_GATEWAY_TOKEN` or that `~/.openclaw/openclaw.json` has `gateway.auth.token`. If the gateway logs `token_missing`, the auth token is not reaching nvimclaw. If it logs `token_mismatch`, the value is not the gateway's current token. If it logs `rate_limited`, quit Neovim and wait for the gateway lockout to clear before retrying.
 - **`auth_expired` (`{code, retryable: true}`)** — the deviceToken rotated mid-session. The plugin attempts one reconnect automatically; if it fails, surface this to the user with `:OpenClawReconnect` suggested.
-- **`buffer_not_found`** — the path doesn't correspond to an open Neovim buffer. For files on disk, open it first with `nvim.buffer.open` (privileged) or ask the user to open it.
-- **`file_missing`** — the path doesn't exist on disk either. Don't guess. Open or read nearby to confirm.
-- **`expected_line_hash` is available** on `nvim.buffer.write`, `nvim.buffer.replace_lines`, and `nvim.ex.substitute` for higher-stakes writes. Compute it by reading the buffer with `nvim.buffer.read` (which can also return it on `nvim.diagnostics.get` adjacency queries — the skill plan reserves a future `nvim.buffer.hash` command) and pass it back on commit.
+- **`buffer_not_found`** — the path or `buffer_id` doesn't correspond to a loaded Neovim buffer. Call `nvim.buffer.list` to rediscover live IDs.
+- **`file_missing`** — the explicit path passed to `nvim.buffer.open` or another disk-backed command doesn't exist. `nvim.buffer.open` never targets unnamed buffers and never accepts `buffer_id`.
+- **`expected_line_hash` is available** on `nvim.buffer.write`, `nvim.buffer.replace_lines`, and `nvim.ex.substitute` for higher-stakes writes. Compute SHA256 over the relevant lines joined by `\n`; a substitute dry run returns the full-buffer hash directly.
 - **No `nvim.session.send` tool** by design. Sending a user message to the active session is a *surface* primitive, not a *node* tool — it's wired to the chat buffer's `<CR>`, not exposed as an `nvim.*` command. A node could in principle craft user-turns on the user's behalf and bypass persona/memory validation; the surface split is what prevents that.
 - **Avoid broad Ex workarounds like `:bufdo` for normal edits.** Use `buffer_id` with `nvim.buffer.write`, `nvim.buffer.replace_lines`, or `nvim.ex.substitute` for unnamed buffers. `nvim.ex.command` preserves the window layout by default, but it is still the escape hatch, not the routine edit path.
 - **`nvim.ex.command` accepts `confirm: true`** for any destructive Ex call. Use it for `:write`, `:bdelete`, `:q`, `:!rm …`. The user dismisses with `q` or `n` to decline.
@@ -475,10 +479,10 @@ Multi-surface rule of thumb: if you (the agent) just sent a message from webchat
 
 ## Compatibility
 
-- **Plugin:** requires `nvimclaw >= 0.1.4`. Plugin and skill are published atomically with matching versions.
+- **Plugin:** requires `nvimclaw >= 0.1.5`. Plugin and skill are published atomically with matching versions.
 - **Protocol:** `nvim.describe.payload.protocol_version` is the wire-protocol version, currently `1`. Bump it only on backward-incompatible tool-surface changes.
 - **Discovery of versions:** `nvim.describe` is the single source of truth for "what does this plugin support?" — call it before relying on a tool that may not exist in older releases.
-- **Skill frontmatter declares:** `requires: nvimclaw: ">=0.1.4"`. A newer skill with an older plugin installed will hit `unknown_command` or `unknown_param` and surface a clear error.
+- **Skill frontmatter declares:** `requires: nvimclaw: ">=0.1.5"`. A newer skill with an older plugin installed will hit `unknown_command` or `unknown_param` and surface a clear error.
 
 ## Related
 

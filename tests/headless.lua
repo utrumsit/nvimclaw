@@ -77,7 +77,15 @@ Config.apply({
 Tools.register_all(dummy_node)
 
 assert_true(registered["nvim.buffer.current"] ~= nil, "buffer.current registered")
+assert_true(registered["nvim.buffer.list"] ~= nil, "buffer.list registered")
 assert_true(registered["nvim.ex.substitute"] ~= nil, "ex.substitute registered")
+local described = Tools._tool_describe({})
+assert_equal(described.result.plugin_version, "0.1.5", "describe plugin version")
+local described_buffer_list = false
+for _, name in ipairs(described.result.tools.safe) do
+  if name == "nvim.buffer.list" then described_buffer_list = true end
+end
+assert_true(described_buffer_list, "describe advertises buffer.list as safe")
 
 vim.cmd("enew")
 local empty_unnamed_buf = vim.api.nvim_get_current_buf()
@@ -87,6 +95,15 @@ assert_true(empty_unnamed_current.ok, "empty unnamed visible buffer current ok")
 assert_equal(empty_unnamed_current.result.buffer_id, empty_unnamed_buf, "chat focus targets empty unnamed visible buffer")
 assert_equal(empty_unnamed_current.result.path, "", "empty unnamed visible buffer path is empty")
 assert_equal(empty_unnamed_current.result.target_source, "last_file_buffer", "empty unnamed target source")
+local listed = Tools._invoke("buffer.list", {})
+assert_true(listed.ok, "buffer.list available in safe tier")
+local listed_empty_unnamed = false
+for _, item in ipairs(listed.result.buffers) do
+  if item.buffer_id == empty_unnamed_buf then
+    listed_empty_unnamed = item.path == "" and item.visible == true
+  end
+end
+assert_true(listed_empty_unnamed, "buffer.list discovers visible unnamed buffer by id")
 require("nvimclaw.chat").close()
 
 local doc = tmp .. "/doc.md"
@@ -153,6 +170,11 @@ Config.apply({
   workspace_root = tmp,
   tools = { tier = "privileged" },
 })
+
+local missing_open_path = Tools._invoke("buffer.open", {})
+assert_true(not missing_open_path.ok, "buffer.open requires path")
+assert_equal(missing_open_path.error.code, "unknown_param", "missing buffer.open path error")
+assert_equal(missing_open_path.error.param, "path", "missing buffer.open path parameter")
 
 local stale = Tools._invoke("buffer.replace_lines", {
   path = doc_rel,

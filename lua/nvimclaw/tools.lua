@@ -67,6 +67,7 @@ local TIER_PRIVILEGED = "privileged"
 function M.register_all(node)
   -- ---- Safe tier (read-only) -------------------------------------------
   M.add(node, "buffer.current",    "Describe the current window's active buffer", TIER_SAFE, M._tool_buffer_current)
+  M.add(node, "buffer.list",       "List loaded buffers and their IDs", TIER_SAFE, M._tool_buffer_list)
   M.add(node, "buffer.read",       "Read a buffer's contents", TIER_SAFE, M._tool_buffer_read)
   M.add(node, "search",            "Search for a pattern in a file", TIER_SAFE, M._tool_search)
   M.add(node, "cursor.get",        "Get cursor position", TIER_SAFE, M._tool_cursor_get)
@@ -191,6 +192,7 @@ end
 function M._known_params(name)
   local sets = {
     ["buffer.current"]      = { include_content = true, max_lines = true },
+    ["buffer.list"]         = {},
     ["buffer.read"]         = { path = true, buffer_id = true },
     ["search"]              = { path = true, pattern = true },
     ["cursor.get"]          = { path = true, buffer_id = true },
@@ -541,6 +543,26 @@ end
 -- Safe-tier handlers
 -- ---------------------------------------------------------------------------
 
+--- nvim.buffer.list
+-- Params: {}
+-- Returns: { ok=true, result={buffers=[...], count=N} }
+function M._tool_buffer_list(_)
+  local current_buf = vim.api.nvim_get_current_buf()
+  local buffers = {}
+
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_is_loaded(buf) then
+      local win = window_for_buffer(buf)
+      local item = buffer_metadata(buf, win, false, nil)
+      item.visible = win ~= nil
+      item.current = buf == current_buf
+      table.insert(buffers, item)
+    end
+  end
+
+  return { ok = true, result = { buffers = buffers, count = #buffers } }
+end
+
 --- nvim.buffer.current
 -- Params: { include_content?, max_lines? }
 -- Returns: { ok=true, result={path, buffer_id, cursor, changedtick, ...} }
@@ -724,7 +746,7 @@ function M._tool_describe(_)
   end)
 
   return { ok = true, result = {
-    plugin_version   = "0.1.4",
+    plugin_version   = "0.1.5",
     protocol_version = 1,
     tools            = M.list_tools(),
     surface_id       = surface_id,
@@ -811,6 +833,9 @@ end
 -- Params: { path }
 -- Returns: { ok=true, result={buffer_id, path} }
 function M._tool_buffer_open(params)
+  if type(params.path) ~= "string" or params.path == "" then
+    return { ok = false, error = { code = "unknown_param", param = "path" } }
+  end
   local resolved = M._resolve_path(params.path)
   if not resolved then
     return { ok = false, error = { code = "path_denied", path = params.path } }
