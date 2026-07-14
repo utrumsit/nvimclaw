@@ -80,12 +80,43 @@ assert_true(registered["nvim.buffer.current"] ~= nil, "buffer.current registered
 assert_true(registered["nvim.buffer.list"] ~= nil, "buffer.list registered")
 assert_true(registered["nvim.ex.substitute"] ~= nil, "ex.substitute registered")
 local described = Tools._tool_describe({})
-assert_equal(described.result.plugin_version, "0.1.6", "describe plugin version")
+assert_equal(described.result.plugin_version, "0.1.7", "describe plugin version")
 local described_buffer_list = false
 for _, name in ipairs(described.result.tools.safe) do
   if name == "nvim.buffer.list" then described_buffer_list = true end
 end
 assert_true(described_buffer_list, "describe advertises buffer.list as safe")
+
+local Node = require("nvimclaw.node")
+local Init = require("nvimclaw")
+local original_node_start = Node.start
+local original_node_start_node = Node.start_node
+local chat_start_saw_buffer_list = false
+local node_start_saw_buffer_list = false
+local function node_has_tool(name)
+  for _, tool in ipairs(Node.list_tools()) do
+    if tool.name == name then
+      return true
+    end
+  end
+  return false
+end
+Node.start = function()
+  chat_start_saw_buffer_list = node_has_tool("nvim.buffer.list")
+end
+Node.start_node = function()
+  node_start_saw_buffer_list = node_has_tool("nvim.buffer.list")
+end
+Init.setup({
+  attach = "none",
+  disable_default_keymaps = true,
+  workspace_root = tmp,
+  tools = { tier = "safe" },
+})
+Node.start = original_node_start
+Node.start_node = original_node_start_node
+assert_true(chat_start_saw_buffer_list, "tools registered before chat/operator connection starts")
+assert_true(node_start_saw_buffer_list, "tools registered before node connection advertises commands")
 
 vim.cmd("enew")
 local empty_unnamed_buf = vim.api.nvim_get_current_buf()

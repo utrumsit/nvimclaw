@@ -54,6 +54,14 @@ nvimclaw connects to the gateway using the **V3 device-identity** flow. Here's w
 5. Plugin persists the `deviceToken`. From then on, every Neovim start reuses the keypair and reconnects automatically.
 6. If `openclaw nodes status` shows `approval pending`, approve the displayed `nvimclaw node` request. If `nodes invoke` reports `node command not allowed`, add the `nvim.*` commands to `gateway.nodes.allowCommands` and restart the gateway.
 
+If a newly added nvimclaw tool is blocked, for example `node command not allowed: nvim.buffer.list`, the gateway allowlist is older than the plugin. On the gateway host, check:
+
+```bash
+openclaw config get gateway.nodes.allowCommands
+```
+
+Add the missing command to `gateway.nodes.allowCommands` in `~/.openclaw/openclaw.json`, then restart the gateway. A broad `nvim\\..*` pattern is convenient for private setups where you trust the plugin's registered command surface; for public or shared gateways, prefer explicit command names so new privileged tools are reviewed before they are allowed.
+
 If the token rotates, the plugin re-issues and persists a new one transparently. If you delete `~/.local/state/nvimclaw/identity.json`, you wipe the device identity and re-pair on the next launch.
 
 Verify the connection: `:OpenClawStatus` shows separate `chat` and `node` state, `node_id`, gateway, session.

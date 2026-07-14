@@ -1,7 +1,7 @@
 ---
 name: "nvimclaw"
 description: "Bridge to live Neovim over OpenClaw's node plugin. Use for reading or editing named and unnamed buffers, discovering open buffers, running surgical Ex substitutions, inspecting cursor/selection/diagnostics, and Neovim chat-to-session messaging."
-version: "0.1.6"
+version: "0.1.7"
 requires:
   nvimclaw: ">=0.1.5"
 ---
@@ -48,6 +48,8 @@ Operator chat can connect with the gateway token. The gateway may be local to Ne
 4. **First launch.** On first run the plugin generates an Ed25519 device-identity keypair at `~/.local/state/nvimclaw/identity.json` (mode 0600), opens an operator WebSocket for chat, then opens a node-role WebSocket for tools after registering commands.
 
 5. **Node approval and command allowlist.** If `openclaw nodes status` says `approval pending`, the user or operator must run the displayed `openclaw nodes approve <requestId>` on the machine/config that controls the gateway. If `nodes invoke` says `node command not allowed`, the gateway config needs `gateway.nodes.allowCommands` entries for the `nvim.*` commands. After changing that config, restart the gateway.
+
+   If the blocked command is a new nvimclaw tool such as `nvim.buffer.list`, the gateway allowlist is older than the plugin. Check the gateway host with `openclaw config get gateway.nodes.allowCommands`, add the missing command to `~/.openclaw/openclaw.json`, then restart the gateway. For private trusted setups, `nvim\\..*` can avoid future per-command updates; for shared gateways, explicit command names are safer because new privileged tools must be reviewed before use.
 
 6. **Multiple Neovim instances** coexist fine. Pick the right one from `openclaw nodes status` and confirm with `nvim.describe`.
 
@@ -378,7 +380,7 @@ Returns:
 
 ```json
 {
-  "plugin_version": "0.1.6",
+  "plugin_version": "0.1.7",
   "protocol_version": 1,
   "surface_id": "nvim:mba.local:8f3a6f6c",
   "node_id": "nvim-abc123...",

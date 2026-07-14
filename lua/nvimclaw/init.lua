@@ -43,34 +43,34 @@ function M.setup(opts)
   Config.apply(opts)
   local config = Config.current()
 
-  -- 2. Bring up the node (gateway connection). This is best-effort: if the
+  -- 2. Register built-in tools before any node connection starts. The gateway
+  --    snapshots the command list during node connect, so registration must
+  --    happen before Node.start_node() can send its connect frame.
+  local Node = require("nvimclaw.node")
+  local Tools = require("nvimclaw.tools")
+  pcall(Tools.register_all, Node)
+
+  -- 3. Bring up the chat/operator connection. This is best-effort: if the
   --    node module isn't written yet (we're landing files in stages), we
   --    log and continue so chat and tools still load.
-  local Node = require("nvimclaw.node")
   local ok, err = pcall(Node.start)
   if not ok then
     local Util = require("nvimclaw.util")
     Util.log("warn", "node.start failed: %s", tostring(err))
   end
+  pcall(Node.start_node)
 
-  -- 3. Register default keybindings unless the user opted out.
+  -- 4. Register default keybindings unless the user opted out.
   if not config.disable_default_keymaps then
     M._register_default_keymaps()
   end
 
-  -- 4. Auto-open the chat buffer if attach mode is buffer or selection.
+  -- 5. Auto-open the chat buffer if attach mode is buffer or selection.
   --    "none" means: don't open chat on setup; user opens it manually.
   if config.attach == "buffer" or config.attach == "selection" then
     local Chat = require("nvimclaw.chat")
     pcall(Chat.maybe_open)
   end
-
-  -- 5. Auto-register built-in tools with the Node.
-  --    This is a no-op until Node.start succeeds; tools register regardless
-  --    because the Node keeps a registry that's consulted on every invoke.
-  local Tools = require("nvimclaw.tools")
-  pcall(Tools.register_all, Node)
-  pcall(Node.start_node)
 
   if not checktime_autocmd_registered then
     checktime_autocmd_registered = true
