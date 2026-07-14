@@ -52,6 +52,9 @@ local state = {
   pending_idem = nil,    -- idempotency key of an in-flight session_send (for cancel)
   active_run_id = nil,   -- OpenClaw runId once sessions.send is accepted
   queued_events = {},    -- runId -> { {kind="chat"|"agent", payload=...}, ... }
+  active_content = "",   -- latest cumulative assistant snapshot for the active run
+  active_seq = nil,      -- highest chat sequence incorporated into active_content
+  active_agent_error = nil, -- diagnostic only; chat terminal events remain authoritative
   last_send_ms = nil,    -- when we issued the in-flight send (for latency display)
   connected = false,     -- tracks connect/disconnect for the status line
   status_text = "connecting...",
@@ -83,6 +86,9 @@ local function clear_pending()
   state.pending_idem = nil
   state.active_run_id = nil
   state.queued_events = {}
+  state.active_content = ""
+  state.active_seq = nil
+  state.active_agent_error = nil
 end
 
 local function clear_waiting()
@@ -96,6 +102,9 @@ local function finish_active_run()
     state.queued_events[state.active_run_id] = nil
   end
   state.active_run_id = nil
+  state.active_content = ""
+  state.active_seq = nil
+  state.active_agent_error = nil
 end
 
 local function status_label(text)
@@ -367,6 +376,9 @@ function M.send(content)
   state.pending_idem = idem
   state.active_run_id = nil
   state.queued_events = {}
+  state.active_content = ""
+  state.active_seq = nil
+  state.active_agent_error = nil
   state.last_send_ms = Util.now_ms()
 
   -- Render the user's turn into history (above the input line).
@@ -530,6 +542,9 @@ function M.handle_send_accepted(payload)
     return
   end
   state.active_run_id = payload.runId
+  state.active_content = ""
+  state.active_seq = nil
+  state.active_agent_error = nil
   M._set_status("thinking...")
   local queued = state.queued_events[payload.runId]
   state.queued_events[payload.runId] = nil
@@ -565,10 +580,65 @@ function M.handle_agent_event(payload)
   if type(data) ~= "table" then return end
   local err = data.error or data.errorMessage or data.rawErrorPreview
   if err then
-    finish_active_run()
-    M._set_status("connected (agent error)")
-    M._append_history({ "", "! " .. tostring(err), "" })
+    -- Agent-stream diagnostics can race with the authoritative chat terminal
+    -- event. Keep the diagnostic as a fallback, but do not finish the run or
+    -- discard a chat snapshot that may already be in flight.
+    state.active_agent_error = type(err) == "table" and (err.message or err.code) or tostring(err)
+    M._set_status("agent error reported (waiting for chat result)")
   end
+end
+
+local function message_text(message)
+  if type(message) == "string" then return message end
+  if type(message) ~= "table" then return nil end
+  if type(message.text) == "string" then return message.text end
+  if type(message.content) == "string" then return message.content end
+  if type(message.content) ~= "table" then return nil end
+
+  local parts = {}
+  for _, part in ipairs(message.content) do
+    if type(part) == "table" and type(part.text) == "string" then
+      table.insert(parts, part.text)
+    elseif type(part) == "string" then
+      table.insert(parts, part)
+    end
+  end
+  return table.concat(parts, "\n")
+end
+
+local function update_active_content(payload)
+  local seq = tonumber(payload.seq)
+  if seq and state.active_seq and seq < state.active_seq then
+    return state.active_content
+  end
+
+  local snapshot = message_text(payload.message)
+  if snapshot == nil and type(payload.content) == "string" then
+    snapshot = payload.content
+  end
+
+  if snapshot ~= nil then
+    -- Some gateways emit an empty message on the terminal frame. Preserve the
+    -- last non-empty snapshot received on a delta in that case.
+    if snapshot ~= "" or state.active_content == "" then
+      state.active_content = snapshot
+    end
+  elseif type(payload.deltaText) == "string" then
+    if payload.replace == true then
+      state.active_content = payload.deltaText
+    elseif payload.deltaText:sub(1, #state.active_content) == state.active_content then
+      -- Be tolerant of older gateways that put a cumulative snapshot in
+      -- deltaText even though protocol v4 defines it as an increment.
+      state.active_content = payload.deltaText
+    else
+      state.active_content = state.active_content .. payload.deltaText
+    end
+  end
+
+  if seq then
+    state.active_seq = math.max(state.active_seq or seq, seq)
+  end
+  return state.active_content
 end
 
 --- Render a chat event into the history area.
@@ -583,28 +653,10 @@ function M.handle_chat_event(payload)
     return
   end
 
-  -- Pull content out of either {message={content=...}} or a flat {content=...}.
-  local content
-  if type(payload.message) == "table" then
-    content = payload.message.text
-    if content == nil and type(payload.message.content) == "string" then
-      content = payload.message.content
-    elseif content == nil and type(payload.message.content) == "table" then
-      local parts = {}
-      for _, part in ipairs(payload.message.content) do
-        if type(part) == "table" and type(part.text) == "string" then
-          table.insert(parts, part.text)
-        elseif type(part) == "string" then
-          table.insert(parts, part)
-        end
-      end
-      content = table.concat(parts, "\n")
-    end
-  end
-  if content == nil then
-    content = payload.deltaText or payload.content or ""
-  end
-  content = tostring(content)
+  -- Protocol v4 carries the latest cumulative message snapshot on deltas and
+  -- finals. Retain it so an empty/error terminal frame cannot erase text the
+  -- user already received upstream.
+  local content = update_active_content(payload)
 
   local ev_state = payload.state or "final"
   if ev_state == "delta" then
@@ -622,8 +674,15 @@ function M.handle_chat_event(payload)
   -- Build the rendered block.
   local lines = { "" }   -- leading blank for visual separation
   if ev_state == "error" then
-    local err = payload.errorMessage or payload.error or "gateway error"
-    table.insert(lines, "! " .. err)
+    if content ~= "" then
+      table.insert(lines, "< me:")
+      for line in (content .. "\n"):gmatch("([^\n]*)\n") do
+        table.insert(lines, "  " .. line)
+      end
+    end
+    local err = payload.errorMessage or payload.error or state.active_agent_error or "gateway error"
+    if type(err) == "table" then err = err.message or err.code or vim.inspect(err) end
+    table.insert(lines, "! " .. tostring(err))
   elseif ev_state == "aborted" then
     table.insert(lines, "! response aborted")
     if content ~= "" then

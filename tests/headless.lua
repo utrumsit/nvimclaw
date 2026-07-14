@@ -80,7 +80,7 @@ assert_true(registered["nvim.buffer.current"] ~= nil, "buffer.current registered
 assert_true(registered["nvim.buffer.list"] ~= nil, "buffer.list registered")
 assert_true(registered["nvim.ex.substitute"] ~= nil, "ex.substitute registered")
 local described = Tools._tool_describe({})
-assert_equal(described.result.plugin_version, "0.1.5", "describe plugin version")
+assert_equal(described.result.plugin_version, "0.1.6", "describe plugin version")
 local described_buffer_list = false
 for _, name in ipairs(described.result.tools.safe) do
   if name == "nvim.buffer.list" then described_buffer_list = true end
@@ -294,6 +294,88 @@ end
 local outside = Tools._invoke("buffer.read", { path = root .. "/README.md" })
 assert_true(not outside.ok, "path outside workspace denied")
 assert_equal(outside.error.code, "path_denied", "path denied code")
+
+-- Chat protocol-v4 regression coverage. Delta events can contain the only
+-- usable assistant snapshot when a terminal frame is empty or reports an
+-- error, so exercise the public event handlers against the real chat buffer.
+local Chat = require("nvimclaw.chat")
+local Node = require("nvimclaw.node")
+local original_session_send = Node.session_send
+local sent_opts = nil
+Node.session_send = function(opts)
+  sent_opts = opts
+  return { idempotency_key = opts.idempotency_key }
+end
+
+local function chat_text()
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_get_name(buf) == "nvimclaw://chat" then
+      return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    end
+  end
+  return ""
+end
+
+local function begin_chat_run(run_id)
+  sent_opts = nil
+  local ok = Chat.send("protocol regression " .. run_id)
+  assert_true(ok, "chat send starts " .. run_id)
+  assert_true(sent_opts and sent_opts.idempotency_key, "chat send captures idempotency key")
+  Chat.handle_send_accepted({
+    idempotency_key = sent_opts.idempotency_key,
+    runId = run_id,
+  })
+end
+
+Chat.open({ side = "right", width = 0.4 })
+
+begin_chat_run("empty-final")
+Chat.handle_chat_event({
+  runId = "empty-final",
+  state = "delta",
+  seq = 1,
+  message = { content = { { type = "text", text = "complete answer from delta" } } },
+})
+Chat.handle_chat_event({
+  runId = "empty-final",
+  state = "final",
+  seq = 2,
+  message = { content = {} },
+})
+assert_true(chat_text():find("complete answer from delta", 1, true) ~= nil, "empty final preserves delta snapshot")
+
+begin_chat_run("error-with-content")
+Chat.handle_chat_event({ runId = "error-with-content", state = "delta", seq = 1, deltaText = "partial " })
+Chat.handle_chat_event({ runId = "error-with-content", state = "delta", seq = 2, deltaText = "answer before error" })
+Chat.handle_chat_event({ runId = "error-with-content", state = "error", seq = 3, errorMessage = "fail" })
+local error_text = chat_text()
+assert_true(error_text:find("partial answer before error", 1, true) ~= nil, "error preserves accumulated response")
+assert_true(error_text:find("! fail", 1, true) ~= nil, "error remains visible after response")
+
+begin_chat_run("late-error")
+Chat.handle_chat_event({
+  runId = "late-error",
+  state = "final",
+  seq = 10,
+  message = { text = "successful final survives" },
+})
+local before_late_error = chat_text()
+Chat.handle_chat_event({ runId = "late-error", state = "error", seq = 1, errorMessage = "late fail" })
+assert_equal(chat_text(), before_late_error, "late error after final is ignored")
+
+begin_chat_run("agent-error-race")
+Chat.handle_chat_event({
+  runId = "agent-error-race",
+  state = "delta",
+  seq = 4,
+  message = { text = "answer survives agent diagnostic" },
+})
+Chat.handle_agent_event({ runId = "agent-error-race", data = { error = "transient fail" } })
+Chat.handle_chat_event({ runId = "agent-error-race", state = "final", seq = 5, message = { text = "" } })
+assert_true(chat_text():find("answer survives agent diagnostic", 1, true) ~= nil, "agent diagnostic does not finish chat run")
+
+Node.session_send = original_session_send
+Chat.close()
 
 print("nvimclaw headless tests passed")
 end

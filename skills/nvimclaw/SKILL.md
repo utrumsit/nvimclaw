@@ -1,7 +1,7 @@
 ---
 name: "nvimclaw"
 description: "Bridge to live Neovim over OpenClaw's node plugin. Use for reading or editing named and unnamed buffers, discovering open buffers, running surgical Ex substitutions, inspecting cursor/selection/diagnostics, and Neovim chat-to-session messaging."
-version: "0.1.5"
+version: "0.1.6"
 requires:
   nvimclaw: ">=0.1.5"
 ---
@@ -378,7 +378,7 @@ Returns:
 
 ```json
 {
-  "plugin_version": "0.1.5",
+  "plugin_version": "0.1.6",
   "protocol_version": 1,
   "surface_id": "nvim:mba.local:8f3a6f6c",
   "node_id": "nvim-abc123...",
