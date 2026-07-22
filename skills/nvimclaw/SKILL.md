@@ -94,6 +94,21 @@ openclaw nodes invoke \
 
 Discover which node is the right one with `nvim.describe` (see §Discovery). Never hardcode a `nodeId` in agent prompts — call `openclaw nodes status` each session.
 
+## Capability rule — `nvim.describe` is authoritative
+
+Always call `nvim.describe` once per connected node before relying on any specific tool. Build a mental allowlist from `payload.result.tools.safe` and `payload.result.tools.privileged`; invoke only commands present in those arrays. Do not assume the installed skill version and the live plugin version match.
+
+If a command is documented here but absent from `nvim.describe`, treat it as unavailable for that node. Use an older workflow if one exists, or tell the user the live Neovim plugin needs to be updated/reloaded. A failed invoke like `node command not allowed: the node ... does not support "nvim.buffer.list"` means the connected node did not advertise that command, even if the gateway config allowlist contains it.
+
+Minimal read workflow that works on old and new nodes:
+
+1. Call `nvim.describe`.
+2. Call `nvim.buffer.current` with `{"include_content": true, "max_lines": 200}`.
+3. If more content is needed and the current result has a non-empty `path`, call `nvim.buffer.read` with that `path`.
+4. If the current result has an empty `path`, use `buffer_id` only if `nvim.buffer.read` on that node supports it. On newer nodes, use `nvim.buffer.list` if it is advertised. On older nodes without `nvim.buffer.list`, do not guess another buffer ID; ask the user to focus the intended buffer or update/reload nvimclaw.
+
+For edits, prefer commands that accept an explicit `path` or `buffer_id`: `nvim.ex.substitute`, `nvim.buffer.replace_lines`, or `nvim.buffer.write`. Do not use `nvim.ex.command` for ordinary buffer edits like `:s/.../.../` unless the target buffer is intentionally the currently active Neovim window and the user accepts that scope.
+
 ## The `nvim.*` tool surface
 
 Every command takes a JSON params object and returns a JSON result. Tools are split into two tiers:
@@ -119,7 +134,7 @@ openclaw nodes invoke --node <N> --command nvim.buffer.current \
   --params '{"include_content": true, "max_lines": 200}'
 ```
 
-If `path` is non-empty, prefer it for later calls. If `path` is empty, the buffer is unnamed; use its `buffer_id`. If the result is the chat buffer or is not the buffer the user means, call `nvim.buffer.list` instead of guessing.
+If `path` is non-empty, prefer it for later calls. If `path` is empty, the buffer is unnamed; use its `buffer_id` with tools that support `buffer_id`. If the result is the chat buffer or is not the buffer the user means, call `nvim.buffer.list` only when `nvim.describe` advertises it; otherwise ask the user to focus the intended buffer or update/reload nvimclaw.
 
 ### Discovering buffer IDs with `nvim.buffer.list` (safe)
 
@@ -136,7 +151,7 @@ openclaw nodes invoke --node <N> --command nvim.buffer.read \
   --params '{"buffer_id": 7}'
 ```
 
-Use this workflow for unnamed buffers because they have no disk path. On plugin versions before 0.1.5, `nvim.buffer.list` is unavailable; `nvim.ex.command` with `{"cmd":"ls"}` is a privileged fallback and may require a tier bump.
+Use this workflow for unnamed buffers because they have no disk path. On plugin versions before 0.1.5, `nvim.buffer.list` is unavailable. Do not invoke it if `nvim.describe` does not list it. `nvim.ex.command` with `{"cmd":"ls"}` can display Vim's buffer list, but it is privileged, text-only, and not a substitute for a safe structured buffer read; prefer asking the user to focus the target buffer or update/reload the plugin.
 
 ### `nvim.buffer.read` (safe)
 
@@ -261,7 +276,7 @@ openclaw nodes invoke --node <N> --command nvim.ex.command \
   --params '{"cmd": "write", "confirm": false}'
 ```
 
-Params: `{cmd: string, confirm?: boolean, preserve_layout?: boolean}`. `preserve_layout` defaults to `true`, so commands that temporarily switch buffers should leave existing windows showing the buffers they showed before. Returns `{ok: true, output: ""}` or `{ok: false, error: {code: "declined"}}` if the user dismissed the prompt.
+Params: `{cmd: string, confirm?: boolean, preserve_layout?: boolean}`. There is no `path` or `buffer_id` target parameter. The Ex command runs in Neovim's currently active window, which may be the `nvimclaw://chat` buffer rather than the agent target returned by `nvim.buffer.current`. `preserve_layout` defaults to `true`, so commands that temporarily switch buffers should leave existing windows showing the buffers they showed before. Returns `{ok: true, output: ""}` or `{ok: false, error: {code: "declined"}}` if the user dismissed the prompt.
 
 ### `nvim.ex.substitute` (privileged — the centerpiece)
 
